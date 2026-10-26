@@ -108,6 +108,7 @@
   .tune .inrow { display:flex; align-items:center; gap:6px; margin:4px 0 2px; }
   .tune .inrow input { width:92px; font:600 15px Menlo, monospace; padding:6px 8px; border:1px solid var(--line); border-radius:6px; color:var(--ink); background:#fff; }
   .tune .inrow input:focus { outline:2px solid var(--accent2); outline-offset:0; border-color:var(--accent2); background:#f3f8fe; }
+  .tune .inrow input.fix { border-color:var(--warn); background:var(--warnbg); }
   .tune .unit { font-size:12px; color:var(--sub); min-width:22px; }
   .tune .msg { font-size:11px; color:var(--ok); }
   .tune .msg.warn { color:var(--warn); }
@@ -169,13 +170,13 @@
       <div class="mode" data-mode="2"><b>빠름</b><span id="modeMax2"></span><br><kbd>3</kbd></div>
     </div>
     <div id="kbView">
-      <div class="hintline"><kbd>Shift</kbd>를 누르고 있는 동안은 잠깐 정밀 모드 (주차할 때)</div>
+      <div class="hintline"><kbd>Shift</kbd>를 누르고 있는 동안은 가속 모드 (빠름 모드 최고 출력으로)</div>
       <h2 style="margin-top:14px">키보드</h2>
       <div class="keys">
         <div></div><div class="key arrow" data-k="up">↑<small>전진</small></div><div></div>
         <div class="key arrow" data-k="left">←<small>왼쪽</small></div><div class="key arrow" data-k="down">↓<small>후진</small></div><div class="key arrow" data-k="right">→<small>오른쪽</small></div>
       </div>
-      <div class="keyrow"><div class="key" data-k="shift">Shift 정밀</div><div class="key wide" data-k="stop">Space 정지</div></div>
+      <div class="keyrow"><div class="key" data-k="shift">Shift 가속</div><div class="key wide" data-k="stop">Space 정지</div></div>
       <div class="hintline">왼손은 Shift와 Space, 오른손은 방향키. 좌우만 누르면 제자리 회전, 위와 같이 누르면 곡선. W·A·S·D도 똑같이 됩니다.</div>
     </div>
     <div id="padView" hidden>
@@ -214,7 +215,7 @@
   </section>
 
   <section class="card span2">
-    <h2>조정 <span style="font-weight:500; color:var(--faint)">· 숫자를 입력하고 Enter. 이 노트북에 저장됩니다</span><span class="editing" id="editHint" hidden>입력 중 · 차 정지 · Enter 적용, Esc 취소</span></h2>
+    <h2>조정 <span style="font-weight:500; color:var(--faint)">· 숫자 칸에 입력하고 <kbd>Enter</kbd> · <kbd>Esc</kbd> 취소 · <kbd>↑</kbd><kbd>↓</kbd> 1씩 · 이 노트북에 저장</span><span class="editing" id="editHint" hidden>입력 중 · 차 정지</span></h2>
     <div class="tune" id="tune"></div>
     <div class="row" style="margin-top:10px"><button class="ghost" id="btnTuneReset" style="font-size:12px; padding:5px 10px">기본값으로</button></div>
   </section>
@@ -263,17 +264,28 @@ const $ = (id) => document.getElementById(id);
 const tune = {};
 let releaseStop = true;
 
+// 조정값은 범위 안의 정수로 맞춘다
+function fitTune(d, v) { return Math.min(d.max, Math.max(d.min, Math.round(v))); }
+// 화면 표시: 직진 보정처럼 음수가 있는 값은 양수 앞에 + 를 붙인다
+function fmtTune(d, v) { return (d.min < 0 && v > 0 ? "+" : "") + v; }
+// "190", "+5", "-5", "−5", "250ms", "35%" 를 숫자로 읽는다. 숫자가 아니면 NaN
+function parseTune(text) {
+  const s = String(text).trim().replace(/−/g, "-").replace(/\s*(%|ms)$/i, "");
+  return /^[+-]?(\d+\.?\d*|\.\d+)$/.test(s) ? Number(s) : NaN;
+}
+
 function loadTune() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch (e) {}
-  for (const d of TUNE_DEFS) tune[d.id] = (typeof saved[d.id] === "number") ? saved[d.id] : d.def;
+  for (const d of TUNE_DEFS) tune[d.id] = Number.isFinite(saved[d.id]) ? fitTune(d, saved[d.id]) : d.def;
   releaseStop = saved.releaseStop !== false;
 }
 function saveTune() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...tune, releaseStop })); } catch (e) {}
 }
 
-// 입력 칸에 숫자를 쳐서 바꾼다. Enter = 적용, Esc = 취소. 범위를 넘으면 끝값으로 맞춘다.
+// 입력 칸: 숫자를 치고 Enter 또는 다른 곳 클릭 = 적용, Esc = 취소, ↑↓ = 1씩.
+// 범위를 넘거나 소수면 고쳐서 받고, 칸을 잠깐 주황색으로 하고 기록에 남긴다.
 function buildTune() {
   const box = $("tune");
   box.innerHTML = "";
@@ -284,41 +296,75 @@ function buildTune() {
       `<label for="t_${d.id}">${d.label}</label>` +
       `<div class="inrow"><input type="text" inputmode="numeric" autocomplete="off" spellcheck="false" id="t_${d.id}">` +
       `<span class="unit">${d.unit}</span><span class="msg" id="m_${d.id}"></span></div>` +
-      `<div class="range">최소 ${d.min} · 최대 ${d.max} · 기본 ${d.def}${d.unit}</div>` +
+      `<div class="range">최소 ${d.min} · 최대 ${d.max} · 기본 ${fmtTune(d, d.def)}${d.unit}</div>` +
       (d.note ? `<div class="note">${d.note}</div>` : "");
     box.appendChild(wrap);
 
     const inp = wrap.querySelector("input");
     const msg = wrap.querySelector(".msg");
-    inp.value = tune[d.id];
-    let msgTimer = null;
+    inp.value = fmtTune(d, tune[d.id]);
+    let msgTimer = null, fixTimer = null, before = tune[d.id], cancel = false;
     const say = (text, warn) => {
       msg.textContent = text;
       msg.classList.toggle("warn", !!warn);
       clearTimeout(msgTimer);
       msgTimer = setTimeout(() => { msg.textContent = ""; }, 2500);
     };
-    const apply = () => {
-      const raw = inp.value.trim();
-      const v = Number(raw);
-      if (raw === "" || !Number.isFinite(v)) {
-        inp.value = tune[d.id];
-        say("숫자가 아니라 되돌림", true);
-        return;
-      }
-      const want = Math.round(v);
-      const nv = Math.min(d.max, Math.max(d.min, want));
-      if (nv !== want) say(`범위 밖이라 ${nv}로 맞춤`, true);
-      else if (nv !== tune[d.id]) say("적용됨");
-      tune[d.id] = nv;
-      inp.value = nv;
+    const flashFix = () => {
+      inp.classList.add("fix");
+      clearTimeout(fixTimer);
+      fixTimer = setTimeout(() => inp.classList.remove("fix"), 1500);
+    };
+    const setVal = (v) => {
+      tune[d.id] = v;
+      inp.value = fmtTune(d, v);
       saveTune();
       refreshModes();
     };
-    inp.addEventListener("change", apply);
+    const apply = () => {
+      const text = inp.value.trim();
+      const v = parseTune(text);
+      if (!Number.isFinite(v)) {                 // 빈칸이나 숫자가 아니면 원래 값 유지
+        setVal(tune[d.id]);
+        if (text) {
+          flashFix(); say("숫자가 아니라 되돌림", true);
+          log(`${d.label}: 숫자가 아니라서 ${fmtTune(d, tune[d.id])}${d.unit} 유지`);
+        }
+        return;
+      }
+      const fixed = fitTune(d, v);
+      const changed = fixed !== tune[d.id];
+      setVal(fixed);
+      if (fixed !== v) {
+        const why = v < d.min || v > d.max ? `범위 ${d.min}~${d.max}` : "정수로 반올림";
+        flashFix(); say(`${fmtTune(d, fixed)}로 맞춤`, true);
+        log(`${d.label}: ${text} → ${fmtTune(d, fixed)}${d.unit} (${why})`);
+      } else if (changed) {
+        say("적용됨");
+      }
+    };
+
+    inp.addEventListener("focus", () => {
+      before = tune[d.id];
+      cancel = false;
+      // 누르면 전체 선택 -> 바로 새 값을 치면 됨. 그 사이 칸을 벗어났으면 하지 않는다 (select가 칸으로 되돌려 보냄)
+      setTimeout(() => { if (document.activeElement === inp) inp.select(); }, 0);
+    });
     inp.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); apply(); inp.blur(); }
-      else if (e.key === "Escape") { e.preventDefault(); inp.value = tune[d.id]; inp.blur(); }
+      if (e.isComposing) return;                 // 한글 입력 중에는 건드리지 않음
+      if (e.key === "Enter") { e.preventDefault(); inp.blur(); }
+      else if (e.key === "Escape") { e.preventDefault(); cancel = true; inp.blur(); }
+      else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        e.preventDefault();
+        const cur = parseTune(inp.value);
+        const base = Number.isFinite(cur) ? cur : tune[d.id];
+        setVal(fitTune(d, base + (e.key === "ArrowUp" ? 1 : -1)));
+        inp.select();
+      }
+    });
+    inp.addEventListener("blur", () => {
+      if (cancel) { cancel = false; setVal(before); return; }
+      apply();
     });
   }
   const rs = document.createElement("label");
@@ -518,7 +564,8 @@ let mode = 1;
 
 // 조정 칸에 커서가 있으면 숫자·방향키·스페이스를 운전 키로 쓰지 않는다 (입력이 우선)
 function isEditing(el) {
-  return !!el && el.tagName === "INPUT" && el.type === "text";
+  return !!el && (el.isContentEditable || el.tagName === "TEXTAREA" ||
+    (el.tagName === "INPUT" && (el.type === "text" || el.type === "number")));
 }
 
 // ==================================================
@@ -613,7 +660,7 @@ window.addEventListener("keyup", (e) => {
 // 입력 칸에 들어가면 차를 세우고, 나오면 다시 운전 키를 받는다
 document.addEventListener("focusin", (e) => {
   if (!isEditing(e.target)) return;
-  releaseAll("값 입력 중이라 차를 세웠습니다");
+  releaseAll(drive.L || drive.R ? "값 입력 칸을 눌러서 정지" : "");
   $("editHint").hidden = false;
 });
 document.addEventListener("focusout", (e) => {
@@ -652,7 +699,7 @@ function approach(cur, target, step) {
 }
 
 let preciseNow = false;
-let effMode = 1;          // 지금 실제로 쓰는 속도 모드 (Shift·LB·RB를 누르는 동안 바뀜)
+let effMode = 1;          // 지금 실제로 쓰는 속도 모드 (키보드 Shift = 가속, 패드 LB = 정밀 / RB = 빠름)
 
 function computeDrive(dt) {
   const p = readPad();
@@ -666,8 +713,9 @@ function computeDrive(dt) {
   const steerKey = (rt ? 1 : 0) - (lf ? 1 : 0);
   const thrStick = usePad ? p.thr : 0;
   const steerStick = usePad ? p.steer : 0;
-  preciseNow = usePad ? p.precise : keys.shift;
-  effMode = preciseNow ? 0 : (usePad && p.boost) ? 2 : mode;
+  preciseNow = usePad && p.precise;
+  const boostNow = usePad ? p.boost : keys.shift;   // 키보드 Shift = 누르는 동안 빠름 모드 최고 출력
+  effMode = preciseNow ? 0 : boostNow ? 2 : mode;
 
   if (keys.stop || isEditing(document.activeElement)) { drive.thr = 0; drive.steer = 0; drive.L = 0; drive.R = 0; return; }
 
@@ -934,7 +982,7 @@ if (location.hash === "#selftest") {
     await hold({ up:true }, 600);
     check("W 보통 전진", drive.L === 190 && drive.R === 190, `${drive.L},${drive.R}`);
     await hold({ up:true, shift:true }, 400);
-    check("Shift 정밀", drive.L === 125 && drive.R === 125, `${drive.L},${drive.R}`);
+    check("Shift 가속", drive.L === 255 && drive.R === 255 && effMode === 2, `${drive.L},${drive.R}`);
     await hold({ right:true }, 400);
     check("D 제자리 오른쪽", drive.L === 160 && drive.R === -160, `${drive.L},${drive.R}`);
     await hold({ up:true, left:true }, 600);
@@ -982,6 +1030,26 @@ if (location.hash === "#selftest") {
     kd("ArrowUp"); await sleep(600);
     check("입력한 170이 바로 반영", drive.L === 170 && drive.R === 170, `${drive.L},${drive.R}`);
     ku("ArrowUp");
+
+    // 팀원 수정본에서 가져온 입력 편의 기능
+    const enter = (el, text) => { el.focus(); el.value = text; el.dispatchEvent(new KeyboardEvent("keydown", { key:"Enter", bubbles:true, cancelable:true })); };
+    const stepKey = (el, key) => el.dispatchEvent(new KeyboardEvent("keydown", { key, code:key, bubbles:true, cancelable:true }));
+    enter($("t_trim"), "+5");
+    check("+5 입력, 화면엔 +5", tune.trim === 5 && $("t_trim").value === "+5", `${tune.trim} / ${$("t_trim").value}`);
+    enter($("t_trim"), "−3");
+    check("유니코드 마이너스 −3", tune.trim === -3, `${tune.trim}`);
+    enter($("t_accelMs"), "300ms");
+    check("단위 붙여도 됨 300ms", tune.accelMs === 300, `${tune.accelMs}`);
+    enter($("t_innerPct"), "40.6");
+    check("소수는 반올림 40.6 → 41", tune.innerPct === 41, `${tune.innerPct}`);
+    await sleep(150);                                  // 앞 시험에서 달리던 차가 멈출 시간
+    const ai = $("t_max0"); ai.focus(); stepKey(ai, "ArrowUp"); stepKey(ai, "ArrowUp"); stepKey(ai, "ArrowDown");
+    await sleep(200);
+    check("입력 칸 안 ↑↓ = 1씩", tune.max0 === 126, `${tune.max0}`);
+    check("입력 칸 안 ↑↓는 운전 안 함", drive.L === 0 && drive.R === 0 && !keys.up, `${drive.L},${drive.R}`);
+    ai.blur();
+    for (const d of TUNE_DEFS) tune[d.id] = d.def;
+    buildTune();
 
     // 게임패드 (가짜 표준 패드를 끼워 넣어 시험)
     tune.max1 = 190;
