@@ -1,0 +1,1064 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4조 RC 조종기</title>
+<style>
+  :root {
+    --bg:#f3f5f8; --card:#ffffff; --ink:#15191e; --sub:#5d6672; --faint:#98a2ae; --line:#dde2e8;
+    --accent:#1e3a5f; --accent2:#2f6fb5;
+    --ok:#1f7a4d; --okbg:#e2f3e9; --warn:#9a5b00; --warnbg:#fff1dc; --bad:#b3261e; --badbg:#fde8e6;
+    --fwd:#2f6fb5; --rev:#c46a1a;
+  }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  html, body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-system, "Apple SD Gothic Neo", sans-serif; }
+  header { display:flex; align-items:center; gap:14px; padding:14px 22px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
+  header h1 { font-size:18px; margin:0; flex:1; }
+  header h1 small { font-size:12px; color:var(--faint); font-weight:500; margin-left:6px; }
+  button { font:inherit; font-weight:600; border-radius:8px; padding:8px 14px; cursor:pointer; border:1px solid var(--accent); background:var(--accent); color:#fff; }
+  button.ghost { background:#fff; color:var(--accent); }
+  button:disabled { opacity:.45; cursor:default; }
+  label.chk { display:flex; align-items:center; gap:6px; color:var(--sub); font-size:13px; }
+  main { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px; padding:16px 22px 28px; max-width:1280px; margin:0 auto; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; min-width:0; }
+  .span2 { grid-column:span 2; } .span3 { grid-column:span 3; }
+  h2 { font-size:13px; letter-spacing:.02em; color:var(--accent); margin:0 0 10px; }
+  .banner { font-size:20px; font-weight:800; padding:14px 18px; border-radius:10px; }
+  .banner.off { background:#eef1f4; color:var(--sub); }
+  .banner.ok { background:var(--okbg); color:var(--ok); }
+  .banner.warn { background:var(--warnbg); color:var(--warn); }
+  .banner.bad { background:var(--badbg); color:var(--bad); }
+  .banner small { display:block; font-size:13px; font-weight:500; margin-top:2px; }
+  .metrics { display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:10px; margin-top:12px; }
+  .metric { background:#f7f9fb; border-radius:8px; padding:8px 10px; }
+  .metric span { display:block; font-size:12px; color:var(--sub); }
+  .metric b { font-size:22px; font-variant-numeric:tabular-nums; }
+  .metric em { font-style:normal; font-size:12px; color:var(--faint); margin-left:3px; }
+  .metric.alert b { color:var(--bad); }
+  /* 바퀴 막대 */
+  .wheels { display:flex; justify-content:center; gap:34px; }
+  .wheel { text-align:center; }
+  .wheel .track { position:relative; width:44px; height:190px; background:#eef1f4; border-radius:8px; margin:0 auto 6px; overflow:hidden; }
+  .wheel .mid { position:absolute; left:0; right:0; top:50%; height:1px; background:var(--faint); }
+  .wheel .cmd { position:absolute; left:4px; right:4px; border:2px dashed var(--faint); border-radius:4px; }
+  .wheel .act { position:absolute; left:10px; right:10px; border-radius:4px; }
+  .wheel .num { font:600 18px/1.2 Menlo, monospace; }
+  .wheel .cap { font-size:12px; color:var(--sub); }
+  .legend { font-size:12px; color:var(--sub); text-align:center; margin-top:8px; }
+  /* 모드 */
+  .modes { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  .mode { border:2px solid var(--line); border-radius:10px; padding:10px 6px; text-align:center; cursor:pointer; user-select:none; }
+  .mode b { display:block; font-size:16px; }
+  .mode span { font-size:12px; color:var(--sub); }
+  .mode kbd { font-size:11px; }
+  .mode.on { border-color:var(--accent2); background:#eaf2fb; }
+  .mode.temp { border-color:var(--warn); background:var(--warnbg); }
+  .hintline { font-size:12px; color:var(--sub); margin-top:8px; }
+  /* 키 */
+  .keys { display:grid; grid-template-columns:repeat(3, 54px); grid-template-rows:repeat(2, 54px); gap:6px; justify-content:center; }
+  .key, kbd { display:flex; align-items:center; justify-content:center; border:1px solid var(--line); border-bottom-width:3px; border-radius:8px; background:#fafbfc; font:600 14px/1 Menlo, monospace; color:var(--sub); }
+  kbd { display:inline-flex; padding:1px 6px; border-bottom-width:2px; border-radius:5px; font-size:12px; }
+  .keys .key { flex-direction:column; gap:2px; }
+  .keys .key.arrow { font-size:22px; }
+  /* 입력 전환 */
+  .seg { display:inline-flex; border:1px solid var(--accent); border-radius:9px; overflow:hidden; }
+  .seg button { border:0; border-radius:0; background:#fff; color:var(--accent); padding:8px 14px; }
+  .seg button + button { border-left:1px solid var(--accent); }
+  .seg button.on { background:var(--accent); color:#fff; }
+  /* 패드 화면 */
+  .padstat { font-weight:700; padding:8px 12px; border-radius:8px; margin-bottom:10px; font-size:13px; }
+  .padstat.off { background:#eef1f4; color:var(--sub); }
+  .padstat.ok { background:var(--okbg); color:var(--ok); }
+  .padstat.bad { background:var(--badbg); color:var(--bad); }
+  .hrow { display:grid; grid-template-columns:34px 1fr 40px; align-items:center; gap:8px; margin:6px 0; font-size:12px; color:var(--sub); }
+  .hrow b { font:600 13px Menlo, monospace; color:var(--ink); text-align:right; }
+  .hbar { position:relative; height:14px; background:#eef1f4; border-radius:7px; overflow:hidden; }
+  .hbar .zero { position:absolute; left:50%; top:0; bottom:0; width:1px; background:var(--faint); }
+  .hbar i { position:absolute; top:2px; bottom:2px; background:var(--accent2); border-radius:4px; }
+  .padbtns { display:flex; gap:6px; margin:8px 0; }
+  .pb { font-size:12px; font-weight:600; padding:3px 9px; border-radius:6px; border:1px solid var(--line); color:var(--sub); background:#fafbfc; }
+  .pb.on { background:var(--accent2); border-color:var(--accent); color:#fff; }
+  .padmap { width:100%; border-collapse:collapse; font-size:12px; margin-top:4px; }
+  .padmap td { padding:3px 4px; border-bottom:1px solid #f0f2f5; }
+  .padmap td:first-child { font-weight:600; white-space:nowrap; color:var(--accent); width:40%; }
+  .padmap td.grp { padding-top:8px; font-size:11px; color:var(--faint); font-weight:700; border-bottom:0; }
+  .padbtns { flex-wrap:wrap; }
+  .key small { display:block; font-size:10px; font-weight:500; }
+  .key.on { background:var(--accent2); color:#fff; border-color:var(--accent); }
+  .keys .space { grid-column:span 3; }
+  .keyrow { display:flex; gap:6px; justify-content:center; margin-top:6px; }
+  .keyrow .key { height:40px; padding:0 14px; }
+  .keyrow .key.wide { width:178px; }
+  /* 타이머 */
+  .timer { font:700 46px/1.1 Menlo, monospace; text-align:center; font-variant-numeric:tabular-nums; }
+  .timer.run { color:var(--accent2); }
+  .laps { list-style:none; margin:10px 0 0; padding:0; max-height:150px; overflow:auto; font:13px/1.7 Menlo, monospace; }
+  .laps li { display:flex; justify-content:space-between; border-bottom:1px solid #f0f2f5; padding:0 4px; }
+  .laps li.best { color:var(--ok); font-weight:700; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  /* 센서 */
+  .sensor { display:flex; justify-content:space-between; align-items:baseline; border-bottom:1px solid #f0f2f5; padding:6px 0; }
+  .sensor b { font:600 18px Menlo, monospace; }
+  .sensor .off { color:var(--faint); font-size:12px; }
+  /* 조정 */
+  .tune { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px 20px; }
+  .tune .field label { display:block; font-size:13px; font-weight:600; }
+  .tune .inrow { display:flex; align-items:center; gap:6px; margin:4px 0 2px; }
+  .tune .inrow input { width:92px; font:600 15px Menlo, monospace; padding:6px 8px; border:1px solid var(--line); border-radius:6px; color:var(--ink); background:#fff; }
+  .tune .inrow input:focus { outline:2px solid var(--accent2); outline-offset:0; border-color:var(--accent2); background:#f3f8fe; }
+  .tune .unit { font-size:12px; color:var(--sub); min-width:22px; }
+  .tune .msg { font-size:11px; color:var(--ok); }
+  .tune .msg.warn { color:var(--warn); }
+  .tune .range { font-size:11px; color:var(--sub); }
+  .tune .note { font-size:11px; color:var(--faint); }
+  .tune .chk { grid-column:1 / -1; }
+  .editing { font-size:12px; font-weight:700; color:var(--warn); background:var(--warnbg); border-radius:6px; padding:4px 10px; margin-left:8px; }
+  @media (max-width:1000px) { .tune { grid-template-columns:repeat(2, minmax(0, 1fr)); } }
+  .log { font:12px/1.6 Menlo, monospace; color:var(--sub); max-height:130px; overflow:auto; margin:0; white-space:pre-wrap; }
+  @media (max-width:1000px) { main { grid-template-columns:1fr 1fr; } .span3 { grid-column:span 2; } .metrics { grid-template-columns:repeat(3, 1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>4조 RC 조종기 <small>팀 미션 #2 · 초안</small></h1>
+  <div class="seg" role="group" aria-label="조종 입력">
+    <button type="button" data-src="key" id="srcKey">⌨︎ 키보드</button>
+    <button type="button" data-src="pad" id="srcPad">🎮 게임패드</button>
+  </div>
+  <label class="chk" title="차 이름이 HM, BT로 시작하지 않아 목록에 안 보일 때 켜세요"><input type="checkbox" id="showAll"> 모든 기기 보기</label>
+  <button id="btnConnect">차 연결</button>
+  <button id="btnSim" class="ghost">시뮬레이션</button>
+  <button id="btnDisconnect" class="ghost" hidden>연결 끊기</button>
+</header>
+
+<main>
+  <section class="card span3">
+    <div id="banner" class="banner off">연결 안 됨<small>[차 연결]을 누르고 목록에서 차(HMSoft 등)를 고르세요. 휴대폰이 차에 붙어 있으면 먼저 끊어야 합니다.</small></div>
+    <div class="metrics">
+      <div class="metric" id="mOkBox"><span>차가 받는 명령</span><b id="mOk">--</b><em>/초 · 정상 20</em></div>
+      <div class="metric" id="mBadBox"><span>깨진 명령</span><b id="mBad">--</b><em>/초</em></div>
+      <div class="metric" id="mRttBox"><span>왕복 지연</span><b id="mRtt">--</b><em>ms</em></div>
+      <div class="metric" id="mAgeBox"><span>마지막 응답</span><b id="mAge">--</b><em>초 전</em></div>
+      <div class="metric" id="mRebootBox"><span>차 재부팅</span><b id="mReboot">0</b><em>회</em></div>
+      <div class="metric"><span>노트북 송신</span><b id="mSend">--</b><em>/초</em></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>바퀴 출력</h2>
+    <div class="wheels">
+      <div class="wheel">
+        <div class="track"><div class="mid"></div><div class="cmd" id="cmdL"></div><div class="act" id="actL"></div></div>
+        <div class="num" id="numL">0</div><div class="cap">왼쪽</div>
+      </div>
+      <div class="wheel">
+        <div class="track"><div class="mid"></div><div class="cmd" id="cmdR"></div><div class="act" id="actR"></div></div>
+        <div class="num" id="numR">0</div><div class="cap">오른쪽</div>
+      </div>
+    </div>
+    <div class="legend">점선 = 보낸 명령 · 색칠 = 차가 실제로 건 값<br>위쪽 파랑 전진 · 아래쪽 주황 후진</div>
+  </section>
+
+  <section class="card">
+    <h2>속도 모드</h2>
+    <div class="modes">
+      <div class="mode" data-mode="0"><b>정밀</b><span id="modeMax0"></span><br><kbd>1</kbd></div>
+      <div class="mode" data-mode="1"><b>보통</b><span id="modeMax1"></span><br><kbd>2</kbd></div>
+      <div class="mode" data-mode="2"><b>빠름</b><span id="modeMax2"></span><br><kbd>3</kbd></div>
+    </div>
+    <div id="kbView">
+      <div class="hintline"><kbd>Shift</kbd>를 누르고 있는 동안은 잠깐 정밀 모드 (주차할 때)</div>
+      <h2 style="margin-top:14px">키보드</h2>
+      <div class="keys">
+        <div></div><div class="key arrow" data-k="up">↑<small>전진</small></div><div></div>
+        <div class="key arrow" data-k="left">←<small>왼쪽</small></div><div class="key arrow" data-k="down">↓<small>후진</small></div><div class="key arrow" data-k="right">→<small>오른쪽</small></div>
+      </div>
+      <div class="keyrow"><div class="key" data-k="shift">Shift 정밀</div><div class="key wide" data-k="stop">Space 정지</div></div>
+      <div class="hintline">왼손은 Shift와 Space, 오른손은 방향키. 좌우만 누르면 제자리 회전, 위와 같이 누르면 곡선. W·A·S·D도 똑같이 됩니다.</div>
+    </div>
+    <div id="padView" hidden>
+      <div class="hintline"><b>LB</b> 누르는 동안 정밀, <b>RB</b> 누르는 동안 빠름. 놓으면 위에서 고른 모드.</div>
+      <h2 style="margin-top:14px">게임패드</h2>
+      <div id="padStatus" class="padstat off">패드 없음 · 패드 버튼을 한 번 누르세요</div>
+      <div class="hrow"><span>가속</span><div class="hbar"><div class="zero"></div><i id="padThr"></i></div><b id="padThrNum">0</b></div>
+      <div class="hrow"><span>조향</span><div class="hbar"><div class="zero"></div><i id="padSteer"></i></div><b id="padSteerNum">0</b></div>
+      <div class="padbtns"><span class="pb" id="pbLB">LB 정밀</span><span class="pb" id="pbRB">RB 빠름</span><span class="pb" id="pbX">X 왼쪽</span><span class="pb" id="pbB">B 오른쪽</span><span class="pb" id="pbDpad">십자키 앞뒤</span></div>
+      <table class="padmap">
+        <tr><td colspan="2" class="grp">스틱으로</td></tr>
+        <tr><td>왼쪽 스틱 위아래</td><td>전진 / 후진 (좌우는 무시)</td></tr>
+        <tr><td>오른쪽 스틱 좌우</td><td>조향 (위아래는 무시)</td></tr>
+        <tr><td>RT / LT</td><td>전진 / 후진, 누른 만큼</td></tr>
+        <tr><td colspan="2" class="grp">버튼으로</td></tr>
+        <tr><td>십자키 위 / 아래</td><td>전진 / 후진 (좌우는 안 씀)</td></tr>
+        <tr><td>X / B</td><td>왼쪽 / 오른쪽</td></tr>
+        <tr><td colspan="2" class="grp">공통</td></tr>
+        <tr><td>LB / RB 누르고 있기</td><td>정밀 / 빠름</td></tr>
+        <tr><td>Start / Back</td><td>타이머 시작·정지 / 초기화</td></tr>
+      </table>
+      <div class="hintline">스틱과 버튼은 섞어 써도 됩니다. 손을 떼면 멈추고, 노트북 <kbd>Space</kbd>는 비상 정지입니다.</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>연습 타이머</h2>
+    <div class="timer" id="timer">0.00</div>
+    <div class="row" style="justify-content:center; margin-top:8px">
+      <button class="ghost" id="btnTimer"><kbd>T</kbd> 시작/정지</button>
+      <button class="ghost" id="btnTimerReset"><kbd>R</kbd> 초기화</button>
+    </div>
+    <label class="chk" style="justify-content:center; margin-top:8px"><input type="checkbox" id="autoStart" checked> 출발하면 자동 시작</label>
+    <ul class="laps" id="laps"></ul>
+    <div class="row" style="justify-content:flex-end; margin-top:6px"><button class="ghost" id="btnLapsClear" style="padding:4px 10px; font-size:12px">기록 지우기</button></div>
+  </section>
+
+  <section class="card span2">
+    <h2>조정 <span style="font-weight:500; color:var(--faint)">· 숫자를 입력하고 Enter. 이 노트북에 저장됩니다</span><span class="editing" id="editHint" hidden>입력 중 · 차 정지 · Enter 적용, Esc 취소</span></h2>
+    <div class="tune" id="tune"></div>
+    <div class="row" style="margin-top:10px"><button class="ghost" id="btnTuneReset" style="font-size:12px; padding:5px 10px">기본값으로</button></div>
+  </section>
+
+  <section class="card">
+    <h2>센서</h2>
+    <div class="sensor"><span>정면 거리</span><span id="sDist" class="off">센서 꺼짐</span></div>
+    <div class="sensor"><span>모터 배터리</span><span id="sBat" class="off">센서 꺼짐</span></div>
+    <div class="sensor"><span>차 켜진 시간</span><b id="sUp">--</b></div>
+    <div class="sensor"><span>차 상태</span><span id="sFlags" class="off">--</span></div>
+    <h2 style="margin-top:14px">기록</h2>
+    <pre class="log" id="log"></pre>
+  </section>
+</main>
+
+<script>
+"use strict";
+// ==================================================
+// 설정 (조정 칸 기본값)
+// ==================================================
+const TUNE_DEFS = [
+  { id:"trim",     label:"직진 보정", min:-25, max:25, step:1, def:0, unit:"%",
+    note:"왼쪽으로 휘면 + 쪽, 오른쪽으로 휘면 − 쪽" },
+  { id:"minPwm",   label:"최소 출력", min:50, max:160, step:5, def:100, unit:"",
+    note:"이보다 낮으면 모터가 안 돎. 출발이 굼뜨면 올리기" },
+  { id:"max0",     label:"정밀 모드 최고 출력", min:90, max:220, step:5, def:125, unit:"" },
+  { id:"max1",     label:"보통 모드 최고 출력", min:120, max:255, step:5, def:190, unit:"" },
+  { id:"max2",     label:"빠름 모드 최고 출력", min:150, max:255, step:5, def:255, unit:"" },
+  { id:"accelMs",  label:"가속 시간", min:0, max:800, step:25, def:250, unit:"ms",
+    note:"키를 누르고 최고 출력까지 걸리는 시간. 0이면 바로" },
+  { id:"innerPct", label:"곡선 안쪽 바퀴 비율", min:0, max:90, step:5, def:35, unit:"%",
+    note:"작을수록 급하게 돎" },
+  { id:"pivotPwm", label:"제자리 회전 출력", min:80, max:255, step:5, def:160, unit:"" },
+  { id:"steerMs",  label:"회전 반응 시간", min:0, max:500, step:25, def:150, unit:"ms",
+    note:"좌우 키를 누르고 최대로 꺾일 때까지 (키보드·십자키)" },
+  { id:"padDead",  label:"패드 스틱 데드존", min:0, max:40, step:1, def:12, unit:"%",
+    note:"스틱을 놓았는데 차가 조금씩 움직이면 올리기" },
+  { id:"padExpo",  label:"패드 조향 부드럽게", min:100, max:300, step:10, def:150, unit:"",
+    note:"100이면 민 만큼 그대로. 클수록 살짝 밀 때 덜 꺾임" },
+];
+const TICK_MS = 50;              // 1초에 20번 보냄
+const STORE_KEY = "rc4-tune-v1";
+const LAPS_KEY = "rc4-laps-v1";
+
+const $ = (id) => document.getElementById(id);
+const tune = {};
+let releaseStop = true;
+
+function loadTune() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || "{}"); } catch (e) {}
+  for (const d of TUNE_DEFS) tune[d.id] = (typeof saved[d.id] === "number") ? saved[d.id] : d.def;
+  releaseStop = saved.releaseStop !== false;
+}
+function saveTune() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({ ...tune, releaseStop })); } catch (e) {}
+}
+
+// 입력 칸에 숫자를 쳐서 바꾼다. Enter = 적용, Esc = 취소. 범위를 넘으면 끝값으로 맞춘다.
+function buildTune() {
+  const box = $("tune");
+  box.innerHTML = "";
+  for (const d of TUNE_DEFS) {
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+    wrap.innerHTML =
+      `<label for="t_${d.id}">${d.label}</label>` +
+      `<div class="inrow"><input type="text" inputmode="numeric" autocomplete="off" spellcheck="false" id="t_${d.id}">` +
+      `<span class="unit">${d.unit}</span><span class="msg" id="m_${d.id}"></span></div>` +
+      `<div class="range">최소 ${d.min} · 최대 ${d.max} · 기본 ${d.def}${d.unit}</div>` +
+      (d.note ? `<div class="note">${d.note}</div>` : "");
+    box.appendChild(wrap);
+
+    const inp = wrap.querySelector("input");
+    const msg = wrap.querySelector(".msg");
+    inp.value = tune[d.id];
+    let msgTimer = null;
+    const say = (text, warn) => {
+      msg.textContent = text;
+      msg.classList.toggle("warn", !!warn);
+      clearTimeout(msgTimer);
+      msgTimer = setTimeout(() => { msg.textContent = ""; }, 2500);
+    };
+    const apply = () => {
+      const raw = inp.value.trim();
+      const v = Number(raw);
+      if (raw === "" || !Number.isFinite(v)) {
+        inp.value = tune[d.id];
+        say("숫자가 아니라 되돌림", true);
+        return;
+      }
+      const want = Math.round(v);
+      const nv = Math.min(d.max, Math.max(d.min, want));
+      if (nv !== want) say(`범위 밖이라 ${nv}로 맞춤`, true);
+      else if (nv !== tune[d.id]) say("적용됨");
+      tune[d.id] = nv;
+      inp.value = nv;
+      saveTune();
+      refreshModes();
+    };
+    inp.addEventListener("change", apply);
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); apply(); inp.blur(); }
+      else if (e.key === "Escape") { e.preventDefault(); inp.value = tune[d.id]; inp.blur(); }
+    });
+  }
+  const rs = document.createElement("label");
+  rs.className = "chk";
+  rs.innerHTML = `<input type="checkbox" id="releaseStop"> 키를 놓으면 바로 정지 (끄면 서서히 멈춤)`;
+  box.appendChild(rs);
+  $("releaseStop").checked = releaseStop;
+  $("releaseStop").addEventListener("change", (e) => { releaseStop = e.target.checked; saveTune(); e.target.blur(); });
+}
+
+// ==================================================
+// 로그
+// ==================================================
+function log(msg) {
+  const d = new Date();
+  const t = [d.getHours(), d.getMinutes(), d.getSeconds()].map((v) => String(v).padStart(2, "0")).join(":");
+  const el = $("log");
+  el.textContent = `${t}  ${msg}\n` + el.textContent.slice(0, 4000);
+}
+
+// ==================================================
+// 연결: HM-10 (서비스 FFE0, 특성 FFE1)
+// ==================================================
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+class BleLink {
+  constructor(onLine, onState) {
+    this.onLine = onLine; this.onState = onState;
+    this.device = null; this.ch = null; this.busy = false; this.buf = ""; this.want = false;
+  }
+  get ready() { return !!this.ch; }
+  async connect(showAll) {
+    if (!navigator.bluetooth) throw new Error("이 브라우저는 블루투스를 못 씁니다. 크롬으로 여세요.");
+    const opts = showAll
+      ? { acceptAllDevices:true, optionalServices:[0xffe0] }
+      : { filters:[{ services:[0xffe0] }, { namePrefix:"HM" }, { namePrefix:"BT" }, { namePrefix:"JDY" }, { namePrefix:"MLT" }, { namePrefix:"CC41" }],
+          optionalServices:[0xffe0] };
+    this.device = await navigator.bluetooth.requestDevice(opts);
+    this.device.addEventListener("gattserverdisconnected", () => this._lost());
+    this.want = true;
+    await this._open();
+  }
+  async _open() {
+    this.onState("connecting");
+    const server = await this.device.gatt.connect();
+    const svc = await server.getPrimaryService(0xffe0);
+    const ch = await svc.getCharacteristic(0xffe1);
+    ch.addEventListener("characteristicvaluechanged", (e) => this._rx(e.target.value));
+    await ch.startNotifications();
+    this.noResp = !!ch.properties.writeWithoutResponse;
+    this.ch = ch;
+    this.onState("connected", this.device.name || "이름 없음");
+  }
+  _rx(dv) {
+    this.buf += dec.decode(dv, { stream:true });
+    let i;
+    while ((i = this.buf.indexOf("\n")) >= 0) {
+      const line = this.buf.slice(0, i).replace(/\r/g, "");
+      this.buf = this.buf.slice(i + 1);
+      if (line) this.onLine(line);
+    }
+    if (this.buf.length > 300) this.buf = "";
+  }
+  async write(text) {
+    if (!this.ch || this.busy) return false;
+    this.busy = true;
+    try {
+      const data = enc.encode(text);
+      if (this.noResp) await this.ch.writeValueWithoutResponse(data);
+      else await this.ch.writeValue(data);
+      return true;
+    } catch (e) {
+      return false;
+    } finally { this.busy = false; }
+  }
+  _lost() {
+    this.ch = null;
+    if (!this.want) { this.onState("off"); return; }
+    this.onState("reconnecting");
+    this._retry();
+  }
+  async _retry() {
+    while (this.want && !this.ch) {
+      try { await this._open(); return; }
+      catch (e) { await sleep(800); }
+    }
+  }
+  async disconnect() {
+    this.want = false;
+    try { if (this.device && this.device.gatt.connected) this.device.gatt.disconnect(); } catch (e) {}
+    this.ch = null;
+    this.onState("off");
+  }
+}
+
+// 차 없이 화면과 키 조작을 시험하는 가짜 차
+class SimLink {
+  constructor(onLine, onState) {
+    this.onLine = onLine; this.onState = onState; this.ch = null;
+    this.l = 0; this.r = 0; this.n = 0; this.ok = 0; this.okHz = 0; this.t0 = performance.now(); this.last = 0; this.failsafe = true;
+  }
+  get ready() { return !!this.ch; }
+  async connect() {
+    this.ch = {};
+    this.onState("connected", "시뮬레이션 차");
+    this.timer = setInterval(() => {
+      this.okHz = this.ok; this.ok = 0;
+      if (performance.now() - this.last > 300) { this.failsafe = true; this.l = 0; this.r = 0; }
+    }, 1000);
+    this.fs = setInterval(() => { if (performance.now() - this.last > 300) { this.failsafe = true; this.l = 0; this.r = 0; } }, 50);
+  }
+  async write(text) {
+    if (!this.ch) return false;
+    const m = /^M(-?\d+),(-?\d+),(\d+)\*([0-9A-F]{2})\n$/.exec(text);
+    if (!m) return false;
+    this.l = +m[1]; this.r = +m[2]; this.ok++; this.last = performance.now(); this.failsafe = false;
+    if (++this.n % 4 === 0) {
+      const up = Math.floor((performance.now() - this.t0) / 1000);
+      const line = `T${m[3]},${this.l},${this.r},${this.okHz},0,${up},${this.failsafe ? 1 : 0},-1,-1`;
+      setTimeout(() => this.onLine(line), 25 + Math.random() * 20);
+    }
+    return true;
+  }
+  async disconnect() { clearInterval(this.timer); clearInterval(this.fs); this.ch = null; this.onState("off"); }
+}
+
+let link = null;
+let linkState = "off";
+let deviceName = "";
+
+function onState(state, name) {
+  linkState = state;
+  if (name) deviceName = name;
+  const msg = { off:"연결 끊음", connecting:"연결 중", connected:`연결됨: ${deviceName}`, reconnecting:"연결 끊김, 다시 연결 시도" }[state];
+  log(msg);
+  $("btnConnect").hidden = state !== "off";
+  $("btnSim").hidden = state !== "off";
+  $("btnDisconnect").hidden = state === "off";
+  if (state === "connected") { tele.lastAt = 0; tele.up = -1; }
+}
+
+async function startLink(kind) {
+  if (link) { await link.disconnect(); link = null; }
+  link = kind === "sim" ? new SimLink(onLine, onState) : new BleLink(onLine, onState);
+  try {
+    await link.connect($("showAll").checked);
+  } catch (e) {
+    if (e && e.name === "NotFoundError") log("기기 선택을 취소했습니다");
+    else log("연결 실패: " + (e && e.message ? e.message : e));
+    link = null;
+    onState("off");
+  }
+}
+
+$("btnConnect").addEventListener("click", (e) => { e.target.blur(); startLink("ble"); });
+$("btnSim").addEventListener("click", (e) => { e.target.blur(); startLink("sim"); });
+$("btnDisconnect").addEventListener("click", async (e) => {
+  e.target.blur();
+  sendNow(0, 0);
+  await sleep(60);
+  if (link) await link.disconnect();
+  link = null;
+});
+
+// ==================================================
+// 차 상태 받기
+// ==================================================
+const tele = { lastAt:0, l:0, r:0, okHz:null, badHz:null, up:-1, flags:0, dist:-1, vbat:-1, rtt:null, reboots:0 };
+const sentAt = new Map();
+
+function onLine(line) {
+  if (line[0] !== "T") { log("차: " + line); return; }
+  const f = line.slice(1).split(",").map(Number);
+  if (f.length < 9 || f.some((v) => !Number.isFinite(v))) return;
+  const [seq, l, r, okHz, badHz, up, flags, dist, vbat] = f;
+  const now = performance.now();
+  if (sentAt.has(seq)) { tele.rtt = now - sentAt.get(seq); }
+  if (tele.up >= 0 && up + 2 < tele.up) {
+    tele.reboots++;
+    log("차가 재부팅됨. 모터 전류 때문에 전원이 순간 끊겼을 수 있습니다");
+  }
+  Object.assign(tele, { lastAt:now, l, r, okHz, badHz, up, flags, dist, vbat });
+}
+
+// ==================================================
+// 키보드 입력
+// ==================================================
+const keys = { up:false, down:false, left:false, right:false, stop:false, shift:false };
+const KEYMAP = {
+  KeyW:"up", ArrowUp:"up", KeyS:"down", ArrowDown:"down",
+  KeyA:"left", ArrowLeft:"left", KeyD:"right", ArrowRight:"right",
+  Space:"stop", ShiftLeft:"shift", ShiftRight:"shift",
+};
+let mode = 1;
+
+// 조정 칸에 커서가 있으면 숫자·방향키·스페이스를 운전 키로 쓰지 않는다 (입력이 우선)
+function isEditing(el) {
+  return !!el && el.tagName === "INPUT" && el.type === "text";
+}
+
+// ==================================================
+// 입력 전환: 키보드 / 게임패드. 고른 쪽만 차를 움직인다.
+// 패드 모드에서도 노트북 Space는 비상 정지로 동작.
+// ==================================================
+const SRC_KEY = "rc4-input-v1";
+let inputSrc = "key";
+try { if (localStorage.getItem(SRC_KEY) === "pad") inputSrc = "pad"; } catch (e) {}
+
+function setInputSrc(src) {
+  if (src === inputSrc) return;
+  inputSrc = src;
+  releaseAll(src === "pad" ? "게임패드로 전환, 차를 한 번 세웠습니다" : "키보드로 전환, 차를 한 번 세웠습니다");
+  pad.prev = [];
+  try { localStorage.setItem(SRC_KEY, src); } catch (e) {}
+  drawInputSrc();
+}
+function drawInputSrc() {
+  $("srcKey").classList.toggle("on", inputSrc === "key");
+  $("srcPad").classList.toggle("on", inputSrc === "pad");
+  $("kbView").hidden = inputSrc !== "key";
+  $("padView").hidden = inputSrc !== "pad";
+}
+$("srcKey").addEventListener("click", (e) => { e.currentTarget.blur(); setInputSrc("key"); });
+$("srcPad").addEventListener("click", (e) => { e.currentTarget.blur(); setInputSrc("pad"); });
+
+// 표준 배치 패드 읽기 (버튼 번호: 0 A, 1 B, 2 X, 3 Y, 4 LB, 5 RB, 6 LT, 7 RT, 8 Back, 9 Start, 12~15 십자키)
+const pad = { prev:[], name:"", standard:false, connected:false, now:null };
+
+// 패드 배치 (스틱과 버튼을 섞어 써도 됨)
+//   앞뒤: 왼쪽 스틱 위아래 · RT/LT · 십자키 위/아래 (십자키 좌우는 안 씀)
+//   조향: 오른쪽 스틱 좌우 · X 왼쪽 / B 오른쪽
+//   속도: LB 누르는 동안 정밀, RB 누르는 동안 빠름, 놓으면 기본 모드
+//   Start 타이머 시작·정지, Back 타이머 초기화. 정지는 손을 떼면 됨 (노트북 Space는 비상 정지)
+function readPad() {
+  const out = { thr:0, steer:0, precise:false, boost:false, up:false, down:false, left:false, right:false };
+  pad.now = out;
+  const list = navigator.getGamepads ? navigator.getGamepads() : [];
+  let gp = null;
+  for (const p of list) if (p && p.connected) { gp = p; break; }
+  pad.connected = !!gp;
+  if (!gp) { pad.prev = []; return out; }
+  pad.name = gp.id;
+  pad.standard = gp.mapping === "standard";
+  if (!pad.standard || inputSrc !== "pad") { pad.prev = gp.buttons.map((b) => b.pressed); return out; }
+
+  const val = (i) => (gp.buttons[i] ? gp.buttons[i].value : 0);
+  const down = (i) => !!(gp.buttons[i] && gp.buttons[i].pressed);
+  const edge = (i) => down(i) && !pad.prev[i];
+  const dz = tune.padDead / 100;
+  const shape = (v, d) => { const a = Math.abs(v); return a <= d ? 0 : Math.sign(v) * (a - d) / (1 - d); };
+
+  // 왼쪽 스틱은 위아래(앞뒤)만, 오른쪽 스틱은 좌우만 읽는다.
+  // 한 스틱으로 둘 다 받으면 직진 중 스틱이 살짝만 옆으로 가도 차가 꺾인다.
+  const trig = shape(val(7), 0.05) - shape(val(6), 0.05);   // RT 전진, LT 후진
+  const ly = -shape(gp.axes[1] || 0, dz);                    // 왼쪽 스틱 위 = 전진
+  const rx = shape(gp.axes[2] || 0, dz);                     // 오른쪽 스틱 좌우 = 조향
+  out.thr = Math.abs(trig) >= Math.abs(ly) ? trig : ly;
+  out.steer = Math.sign(rx) * Math.pow(Math.abs(rx), tune.padExpo / 100);
+  out.precise = down(4);                         // LB
+  out.boost = down(5);                           // RB
+  out.up = down(12); out.down = down(13);        // 십자키 위/아래 = 앞뒤
+  out.left = down(2); out.right = down(1);       // X = 왼쪽, B = 오른쪽
+
+  if (edge(9)) toggleTimer();
+  if (edge(8)) resetTimer();
+  pad.prev = gp.buttons.map((b) => b.pressed);
+  return out;
+}
+
+window.addEventListener("keydown", (e) => {
+  if (isEditing(e.target)) return;
+  const k = KEYMAP[e.code];
+  if (k) {
+    e.preventDefault();
+    if (inputSrc === "key" || k === "stop") keys[k] = true;   // 패드 모드에서는 Space(정지)만 받는다
+    return;
+  }
+  if (e.repeat) return;
+  if (e.code === "Digit1" || e.code === "Digit2" || e.code === "Digit3") { setMode(Number(e.code.slice(-1)) - 1); e.preventDefault(); }
+  else if (e.code === "KeyT") { toggleTimer(); e.preventDefault(); }
+  else if (e.code === "KeyR") { resetTimer(); e.preventDefault(); }
+});
+window.addEventListener("keyup", (e) => {
+  const k = KEYMAP[e.code];
+  if (!k) return;
+  keys[k] = false;                       // 떼는 건 입력 중이어도 항상 반영 (안전)
+  if (!isEditing(e.target)) e.preventDefault();
+});
+
+// 입력 칸에 들어가면 차를 세우고, 나오면 다시 운전 키를 받는다
+document.addEventListener("focusin", (e) => {
+  if (!isEditing(e.target)) return;
+  releaseAll("값 입력 중이라 차를 세웠습니다");
+  $("editHint").hidden = false;
+});
+document.addEventListener("focusout", (e) => {
+  if (isEditing(e.target)) $("editHint").hidden = true;
+});
+// 창이 포커스를 잃으면 keyup이 안 와서 차가 계속 갈 수 있다 -> 모두 놓은 것으로 처리
+function releaseAll(reason) {
+  for (const k in keys) keys[k] = false;
+  drive.thr = 0; drive.steer = 0;
+  if (reason) log(reason);
+}
+window.addEventListener("blur", () => releaseAll("창 밖을 눌러서 정지"));
+document.addEventListener("visibilitychange", () => { if (document.hidden) releaseAll("다른 창으로 가서 정지"); });
+
+function setMode(m) { mode = m; refreshModes(); }
+function refreshModes() {
+  document.querySelectorAll(".mode").forEach((el) => {
+    const m = Number(el.dataset.mode);
+    el.classList.toggle("on", m === mode && effMode === mode);
+    el.classList.toggle("temp", m === effMode && effMode !== mode);
+    $("modeMax" + m).textContent = "최고 " + tune["max" + m];
+  });
+}
+document.querySelectorAll(".mode").forEach((el) => el.addEventListener("click", () => setMode(Number(el.dataset.mode))));
+
+// ==================================================
+// 키 상태 -> 바퀴 출력
+// ==================================================
+const drive = { thr:0, steer:0, L:0, R:0 };
+let lastTick = performance.now();
+
+function approach(cur, target, step) {
+  if (cur < target) return Math.min(target, cur + step);
+  if (cur > target) return Math.max(target, cur - step);
+  return cur;
+}
+
+let preciseNow = false;
+let effMode = 1;          // 지금 실제로 쓰는 속도 모드 (Shift·LB·RB를 누르는 동안 바뀜)
+
+function computeDrive(dt) {
+  const p = readPad();
+  const usePad = inputSrc === "pad";
+  // 버튼(키보드 방향키·패드 십자키·X·B)은 켜짐/꺼짐, 스틱·트리거는 민 만큼
+  const up = usePad ? p.up : keys.up;
+  const dn = usePad ? p.down : keys.down;
+  const lf = usePad ? p.left : keys.left;
+  const rt = usePad ? p.right : keys.right;
+  const thrKey = (up ? 1 : 0) - (dn ? 1 : 0);
+  const steerKey = (rt ? 1 : 0) - (lf ? 1 : 0);
+  const thrStick = usePad ? p.thr : 0;
+  const steerStick = usePad ? p.steer : 0;
+  preciseNow = usePad ? p.precise : keys.shift;
+  effMode = preciseNow ? 0 : (usePad && p.boost) ? 2 : mode;
+
+  if (keys.stop || isEditing(document.activeElement)) { drive.thr = 0; drive.steer = 0; drive.L = 0; drive.R = 0; return; }
+
+  // 앞뒤와 조향을 따로 정한다 -> 스틱과 버튼을 섞어 써도 된다
+  const accStep = tune.accelMs > 0 ? dt / tune.accelMs : 1;
+  if (thrKey !== 0) {
+    // 버튼: 누르고 있으면 accelMs 동안 0 -> 1. 방향을 바꾸면 0부터 다시.
+    if (Math.sign(drive.thr) !== thrKey && drive.thr !== 0) drive.thr = 0;
+    drive.thr = approach(drive.thr, thrKey, accStep);
+  } else if (thrStick !== 0) {
+    // 스틱·트리거: 세게 밀 때만 accelMs로 천천히 올리고, 놓으면 바로 따라 내려간다
+    if (drive.thr !== 0 && Math.sign(drive.thr) !== Math.sign(thrStick)) drive.thr = 0;
+    drive.thr = Math.abs(thrStick) > Math.abs(drive.thr) ? approach(drive.thr, thrStick, accStep) : thrStick;
+  } else {
+    drive.thr = releaseStop ? 0 : approach(drive.thr, 0, dt / 300);
+  }
+
+  const stStep = tune.steerMs > 0 ? dt / tune.steerMs : 1;
+  if (steerKey !== 0) {
+    // 버튼: 누르면 steerMs 동안 서서히 최대
+    if (Math.sign(drive.steer) !== steerKey && drive.steer !== 0) drive.steer = 0;
+    drive.steer = approach(drive.steer, steerKey, stStep);
+  } else if (steerStick !== 0) {
+    drive.steer = steerStick;
+  } else {
+    drive.steer = approach(drive.steer, 0, dt / 60);
+  }
+
+  const maxPwm = tune["max" + effMode];
+  const minPwm = Math.min(tune.minPwm, maxPwm);
+  let L = 0, R = 0;
+  const a = Math.abs(drive.thr), s = Math.abs(drive.steer);
+
+  if (a < 0.001 && s > 0.001) {
+    // 제자리 회전
+    const pv = minPwm + (Math.min(tune.pivotPwm, 255) - minPwm) * s;
+    const dir = Math.sign(drive.steer);   // +1 오른쪽
+    L = dir * pv; R = -dir * pv;
+    if (effMode === 0) { L *= tune.max0 / Math.max(tune.pivotPwm, 1); R *= tune.max0 / Math.max(tune.pivotPwm, 1); }
+  } else if (a > 0.001) {
+    const base = minPwm + (maxPwm - minPwm) * a;
+    const inner = base * (1 - s * (1 - tune.innerPct / 100));
+    if (drive.steer > 0) { L = base; R = inner; }
+    else if (drive.steer < 0) { L = inner; R = base; }
+    else { L = base; R = base; }
+    if (drive.thr < 0) { L = -L; R = -R; }
+  }
+
+  // 직진 보정: + 이면 오른쪽 바퀴를 줄이고, − 이면 왼쪽 바퀴를 줄인다
+  if (tune.trim > 0) R *= 1 - tune.trim / 100;
+  else if (tune.trim < 0) L *= 1 + tune.trim / 100;
+
+  drive.L = Math.max(-255, Math.min(255, Math.round(L)));
+  drive.R = Math.max(-255, Math.min(255, Math.round(R)));
+}
+
+// ==================================================
+// 보내기 (1초에 20번, 멈춰 있어도 계속 보냄 = 살아 있다는 신호)
+// ==================================================
+let seq = 0;
+let sendCount = 0, sendHz = 0, sendWindow = performance.now();
+
+function frame(l, r, n) {
+  const body = `M${l},${r},${n}`;
+  let x = 0;
+  for (let i = 0; i < body.length; i++) x ^= body.charCodeAt(i);
+  return body + "*" + x.toString(16).toUpperCase().padStart(2, "0") + "\n";
+}
+
+async function sendNow(l, r) {
+  if (!link || !link.ready) return false;
+  seq = (seq + 1) % 1000;
+  sentAt.set(seq, performance.now());
+  if (sentAt.size > 60) sentAt.delete(sentAt.keys().next().value);
+  const ok = await link.write(frame(l, r, seq));
+  if (ok) sendCount++;
+  return ok;
+}
+
+function tick() {
+  const now = performance.now();
+  const dt = Math.min(200, now - lastTick);
+  lastTick = now;
+  computeDrive(dt);
+  autoStartTimer();
+  if (link && link.ready) sendNow(drive.L, drive.R);
+  if (now - sendWindow >= 1000) { sendHz = sendCount; sendCount = 0; sendWindow = now; }
+}
+setInterval(tick, TICK_MS);
+
+// ==================================================
+// 연습 타이머
+// ==================================================
+const timer = { running:false, t0:0, elapsed:0, armed:true };
+let laps = [];
+try { laps = JSON.parse(localStorage.getItem(LAPS_KEY) || "[]"); } catch (e) { laps = []; }
+
+function toggleTimer() {
+  if (timer.running) {
+    timer.elapsed = performance.now() - timer.t0;
+    timer.running = false;
+    laps.unshift({ t:timer.elapsed / 1000, at:Date.now() });
+    laps = laps.slice(0, 30);
+    try { localStorage.setItem(LAPS_KEY, JSON.stringify(laps)); } catch (e) {}
+    drawLaps();
+    timer.armed = false;
+  } else {
+    timer.t0 = performance.now() - timer.elapsed;
+    timer.running = true;
+  }
+}
+function resetTimer() { timer.running = false; timer.elapsed = 0; timer.armed = true; }
+function autoStartTimer() {
+  if (!$("autoStart").checked || timer.running || !timer.armed || timer.elapsed > 0) return;
+  if (drive.L !== 0 || drive.R !== 0) { timer.t0 = performance.now(); timer.running = true; timer.armed = false; }
+}
+function drawLaps() {
+  const best = laps.length ? Math.min(...laps.map((x) => x.t)) : null;
+  $("laps").innerHTML = laps.map((x, i) =>
+    `<li class="${x.t === best ? "best" : ""}"><span>${laps.length - i}회</span><span>${x.t.toFixed(2)} 초</span></li>`).join("");
+}
+$("btnTimer").addEventListener("click", (e) => { e.target.blur(); toggleTimer(); });
+$("btnTimerReset").addEventListener("click", (e) => { e.target.blur(); resetTimer(); });
+$("btnLapsClear").addEventListener("click", (e) => {
+  e.target.blur();
+  laps = [];
+  try { localStorage.removeItem(LAPS_KEY); } catch (err) {}
+  drawLaps();
+});
+
+// ==================================================
+// 화면 갱신
+// ==================================================
+function drawBar(cmdEl, actEl, cmd, act) {
+  const H = 190, half = H / 2;
+  const place = (el, v) => {
+    const h = Math.abs(v) / 255 * half;
+    el.style.height = h + "px";
+    el.style.top = (v >= 0 ? half - h : half) + "px";
+  };
+  place(cmdEl, cmd);
+  place(actEl, act);
+  actEl.style.background = act >= 0 ? "var(--fwd)" : "var(--rev)";
+}
+
+function setMetric(boxId, valId, text, alert) {
+  $(valId).textContent = text;
+  $(boxId).classList.toggle("alert", !!alert);
+}
+
+function render() {
+  const now = performance.now();
+  const connected = link && link.ready;
+  const age = tele.lastAt ? (now - tele.lastAt) / 1000 : null;
+  const fresh = connected && age !== null && age < 1.0;
+
+  // 큰 상태 표시
+  let cls = "off", title = "연결 안 됨", sub = "[차 연결]을 누르고 목록에서 차(HMSoft 등)를 고르세요. 휴대폰이 차에 붙어 있으면 먼저 끊어야 합니다.";
+  if (linkState === "connecting") { cls = "warn"; title = "연결 중…"; sub = deviceName; }
+  else if (linkState === "reconnecting") { cls = "bad"; title = "연결 끊김 · 차는 0.3초 뒤 자동 정지"; sub = "다시 연결하는 중입니다. 반환점 전이면 이 시도는 무효입니다."; }
+  else if (connected && !fresh) { cls = "bad"; title = "연결은 됐지만 차 응답 없음"; sub = "차 전원과 업로드한 코드(TeamMission2_Laptop)를 확인하세요."; }
+  else if (connected && fresh) {
+    const shaky = (tele.okHz !== null && tele.okHz < 15) || (tele.badHz || 0) > 2;
+    if (tele.flags & 1 && (drive.L || drive.R)) { cls = "bad"; title = "차가 명령을 못 받아 멈춤"; sub = "신호가 끊겼다 이어졌습니다."; }
+    else if (shaky) { cls = "warn"; title = "연결됨 · 신호 불안정"; sub = `${deviceName} · 차와 노트북 거리를 줄이거나 휴대폰 블루투스를 꺼 보세요.`; }
+    else { cls = "ok"; title = "연결됨 · 정상"; sub = deviceName; }
+  }
+  const b = $("banner");
+  b.className = "banner " + cls;
+  b.innerHTML = `${title}<small>${sub}</small>`;
+
+  setMetric("mOkBox", "mOk", fresh && tele.okHz !== null ? tele.okHz : "--", fresh && tele.okHz < 15);
+  setMetric("mBadBox", "mBad", fresh && tele.badHz !== null ? tele.badHz : "--", fresh && tele.badHz > 2);
+  setMetric("mRttBox", "mRtt", fresh && tele.rtt !== null ? Math.round(tele.rtt) : "--", fresh && tele.rtt > 150);
+  setMetric("mAgeBox", "mAge", age !== null && connected ? age.toFixed(1) : "--", connected && age !== null && age > 1);
+  setMetric("mRebootBox", "mReboot", tele.reboots, tele.reboots > 0);
+  $("mSend").textContent = connected ? sendHz : "--";
+
+  // 바퀴
+  const actL = fresh ? tele.l : 0, actR = fresh ? tele.r : 0;
+  drawBar($("cmdL"), $("actL"), drive.L, actL);
+  drawBar($("cmdR"), $("actR"), drive.R, actR);
+  $("numL").textContent = fresh ? actL : drive.L;
+  $("numR").textContent = fresh ? actR : drive.R;
+
+  // 키
+  document.querySelectorAll(".key[data-k]").forEach((el) => el.classList.toggle("on", !!keys[el.dataset.k]));
+  refreshModes();
+
+  // 패드
+  if (inputSrc === "pad") {
+    const ps = $("padStatus");
+    if (!pad.connected) { ps.className = "padstat bad"; ps.textContent = "패드 없음 · 패드를 연결하고 버튼을 한 번 누르세요. 그동안 차는 서 있습니다."; }
+    else if (!pad.standard) { ps.className = "padstat bad"; ps.textContent = "표준 배치가 아닌 패드라 조종에 쓰지 않습니다 · " + pad.name; }
+    else { ps.className = "padstat ok"; ps.textContent = "패드 연결됨 · " + pad.name.replace(/\s*\(.*\)\s*$/, ""); }
+    const pn = pad.now || { thr:0, steer:0 };
+    const hb = (el, v) => {
+      const w = Math.min(1, Math.abs(v)) * 50;
+      el.style.width = w + "%";
+      el.style.left = (v >= 0 ? 50 : 50 - w) + "%";
+    };
+    hb($("padThr"), pn.thr); hb($("padSteer"), pn.steer);
+    $("padThrNum").textContent = pn.thr.toFixed(2);
+    $("padSteerNum").textContent = pn.steer.toFixed(2);
+    $("pbLB").classList.toggle("on", !!pn.precise);
+    $("pbRB").classList.toggle("on", !!pn.boost);
+    $("pbX").classList.toggle("on", !!pn.left);
+    $("pbB").classList.toggle("on", !!pn.right);
+    $("pbDpad").classList.toggle("on", !!(pn.up || pn.down));
+  }
+
+  // 타이머
+  const t = timer.running ? (now - timer.t0) : timer.elapsed;
+  $("timer").textContent = (t / 1000).toFixed(2);
+  $("timer").classList.toggle("run", timer.running);
+
+  // 센서
+  const sDist = $("sDist"), sBat = $("sBat");
+  if (fresh && (tele.flags & 4)) { sDist.className = ""; sDist.innerHTML = tele.dist >= 0 ? `<b>${(tele.dist / 10).toFixed(1)}</b> cm` : "<b>--</b> 측정 안 됨"; }
+  else { sDist.className = "off"; sDist.textContent = "센서 꺼짐"; }
+  if (fresh && (tele.flags & 8)) { sBat.className = ""; sBat.innerHTML = `<b>${(tele.vbat / 1000).toFixed(2)}</b> V`; }
+  else { sBat.className = "off"; sBat.textContent = "센서 꺼짐"; }
+  $("sUp").textContent = fresh ? tele.up + " 초" : "--";
+  const sf = $("sFlags");
+  if (!fresh) { sf.className = "off"; sf.textContent = "--"; }
+  else { sf.className = ""; sf.textContent = (tele.flags & 2) ? "휴대폰 모드" : (tele.flags & 1) ? "명령 없음, 정지" : "노트북 조종 중"; }
+
+  requestAnimationFrame(render);
+}
+
+// ==================================================
+// 시작
+// ==================================================
+loadTune();
+buildTune();
+refreshModes();
+drawLaps();
+drawInputSrc();
+window.addEventListener("gamepadconnected", (e) => log("패드 연결됨: " + e.gamepad.id));
+window.addEventListener("gamepaddisconnected", () => log("패드 연결 끊김"));
+$("btnTuneReset").addEventListener("click", (e) => {
+  e.target.blur();
+  for (const d of TUNE_DEFS) tune[d.id] = d.def;
+  releaseStop = true;
+  saveTune(); buildTune(); refreshModes();
+});
+if (!navigator.bluetooth) log("이 브라우저는 블루투스를 못 씁니다. 크롬으로 여세요.");
+log("준비됨. 차가 없으면 [시뮬레이션]으로 키 조작을 먼저 연습할 수 있습니다.");
+requestAnimationFrame(render);
+
+// ==================================================
+// 자체 점검 (주소 끝에 #selftest 를 붙여 열면 실행, 평소에는 동작 안 함)
+// ==================================================
+if (location.hash === "#selftest") {
+  (async () => {
+    const out = [];
+    const check = (name, cond, extra) => out.push((cond ? "통과 " : "실패 ") + name + (extra ? "  " + extra : ""));
+    for (const d of TUNE_DEFS) tune[d.id] = d.def;
+    releaseStop = true;
+    await startLink("sim");
+    const hold = async (ks, ms) => { releaseAll(); Object.assign(keys, ks); await sleep(ms); };
+
+    setMode(1);
+    await hold({ up:true }, 600);
+    check("W 보통 전진", drive.L === 190 && drive.R === 190, `${drive.L},${drive.R}`);
+    await hold({ up:true, shift:true }, 400);
+    check("Shift 정밀", drive.L === 125 && drive.R === 125, `${drive.L},${drive.R}`);
+    await hold({ right:true }, 400);
+    check("D 제자리 오른쪽", drive.L === 160 && drive.R === -160, `${drive.L},${drive.R}`);
+    await hold({ up:true, left:true }, 600);
+    check("W+A 왼쪽 곡선", drive.R === 190 && drive.L === Math.round(190 * 0.35), `${drive.L},${drive.R}`);
+    await hold({ down:true }, 600);
+    check("S 후진", drive.L === -190 && drive.R === -190, `${drive.L},${drive.R}`);
+    await hold({ up:true, stop:true }, 300);
+    check("Space 정지", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
+    await hold({ up:true }, 600);
+    releaseAll(); await sleep(120);
+    check("놓으면 정지", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
+    tune.trim = 10;
+    await hold({ up:true }, 600);
+    check("보정 +10", drive.L === 190 && drive.R === 171, `${drive.L},${drive.R}`);
+    tune.trim = 0;
+    await hold({ up:true }, 1500);
+    check("차가 실제 값 회신", tele.l === 190 && tele.r === 190, `${tele.l},${tele.r}`);
+    check("송신 20/초 근처", sendHz >= 17 && sendHz <= 21, `${sendHz}`);
+    check("차 수신 20/초 근처", tele.okHz >= 17 && tele.okHz <= 21, `${tele.okHz}`);
+    check("왕복 지연 측정", tele.rtt > 0 && tele.rtt < 200, `${Math.round(tele.rtt)}ms`);
+    check("체크섬 형식", /^M190,190,\d+\*[0-9A-F]{2}\n$/.test(frame(190, 190, seq)), JSON.stringify(frame(190, 190, 7)));
+    // 실제 키보드 이벤트: 방향키
+    releaseAll();
+    const kd = (code, target) => (target || window).dispatchEvent(new KeyboardEvent("keydown", { code, key:code, bubbles:true, cancelable:true }));
+    const ku = (code, target) => (target || window).dispatchEvent(new KeyboardEvent("keyup", { code, key:code, bubbles:true, cancelable:true }));
+    kd("ArrowUp"); kd("ArrowLeft"); await sleep(600);
+    check("방향키 ↑+← 왼쪽 곡선", drive.R === 190 && drive.L === 67, `${drive.L},${drive.R}`);
+    ku("ArrowUp"); ku("ArrowLeft"); await sleep(120);
+    check("방향키 떼면 정지", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
+
+    // 조정 칸 직접 입력
+    const inp = $("t_max1");
+    inp.focus();
+    check("입력 칸 들어가면 안내 표시", !$("editHint").hidden);
+    kd("ArrowUp", inp); kd("Digit3", inp); await sleep(300);
+    check("입력 중 방향키·숫자는 운전 안 함", drive.L === 0 && drive.R === 0 && mode === 1, `${drive.L},${drive.R} 모드${mode}`);
+    inp.value = "300"; inp.dispatchEvent(new KeyboardEvent("keydown", { key:"Enter", bubbles:true, cancelable:true }));
+    check("범위 넘으면 최대값으로", tune.max1 === 255 && inp.value === "255", `${tune.max1}`);
+    check("Enter 후 입력 칸에서 나옴", document.activeElement !== inp && $("editHint").hidden);
+    inp.focus(); inp.value = "abc"; inp.dispatchEvent(new KeyboardEvent("keydown", { key:"Enter", bubbles:true, cancelable:true }));
+    check("숫자 아니면 되돌림", tune.max1 === 255 && inp.value === "255", `${inp.value}`);
+    inp.focus(); inp.value = "170"; inp.dispatchEvent(new KeyboardEvent("keydown", { key:"Enter", bubbles:true, cancelable:true }));
+    const ti = $("t_trim"); ti.focus(); ti.value = "-8"; ti.dispatchEvent(new KeyboardEvent("keydown", { key:"Escape", bubbles:true, cancelable:true }));
+    check("Esc는 취소", tune.trim === 0 && ti.value === "0", `${tune.trim}`);
+    kd("ArrowUp"); await sleep(600);
+    check("입력한 170이 바로 반영", drive.L === 170 && drive.R === 170, `${drive.L},${drive.R}`);
+    ku("ArrowUp");
+
+    // 게임패드 (가짜 표준 패드를 끼워 넣어 시험)
+    tune.max1 = 190;
+    const fake = { id:"Test Pad (STANDARD GAMEPAD)", mapping:"standard", connected:true, axes:[0, 0, 0, 0],
+                   buttons:Array.from({ length:17 }, () => ({ pressed:false, value:0 })) };
+    const btn = (i, v) => { fake.buttons[i] = { pressed:v > 0.5, value:v }; };
+    const realGet = navigator.getGamepads.bind(navigator);
+    Object.defineProperty(navigator, "getGamepads", { value:() => [fake], configurable:true });
+    releaseAll(); setMode(1);
+
+    btn(7, 1); await sleep(600);
+    check("키보드 모드에선 패드 무시", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
+    setInputSrc("pad"); await sleep(600);
+    check("패드 RT 끝까지 = 전진", drive.L === 190 && drive.R === 190, `${drive.L},${drive.R}`);
+    btn(7, 0.5); await sleep(200);
+    const half = Math.round(100 + 90 * (0.5 - 0.05) / 0.95);   // 트리거 떨림 무시 5% 반영
+    check("RT 절반 = 절반 속도", drive.L === half && drive.R === half, `${drive.L},${drive.R} (기대 ${half})`);
+    btn(7, 1); fake.axes[2] = 1; await sleep(300);
+    check("RT + 오른쪽 스틱 오른쪽 = 오른쪽 곡선", drive.L === 190 && drive.R === 67, `${drive.L},${drive.R}`);
+    btn(7, 0); fake.axes[2] = 0; fake.axes[1] = -1; await sleep(600);
+    check("왼쪽 스틱 위 = 전진", drive.L === 190 && drive.R === 190, `${drive.L},${drive.R}`);
+    fake.axes[0] = 0.6; await sleep(200);
+    check("왼쪽 스틱 옆으로 밀어도 직진 유지", drive.L === 190 && drive.R === 190, `${drive.L},${drive.R}`);
+    fake.axes[0] = 0; fake.axes[1] = 0; fake.axes[3] = -1; await sleep(200);
+    check("오른쪽 스틱 위아래는 무시", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
+    fake.axes[3] = 0; fake.axes[1] = -1; fake.axes[2] = -1; await sleep(600);
+    check("왼쪽 위 + 오른쪽 왼쪽 = 왼쪽 곡선", drive.L === 67 && drive.R === 190, `${drive.L},${drive.R}`);
+    fake.axes[1] = 0; fake.axes[2] = 0;
+    fake.axes[1] = 0; fake.axes[0] = 0.1; fake.axes[2] = -0.08; await sleep(200);
+    check("데드존 안 흔들림은 무시", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
+    fake.axes[0] = 0; fake.axes[2] = 0;
+    btn(6, 1); await sleep(600);
+    check("LT = 후진", drive.L === -190 && drive.R === -190, `${drive.L},${drive.R}`);
+    btn(6, 0); btn(4, 1); btn(7, 1); await sleep(600);
+    check("LB + RT = 정밀", drive.L === 125 && drive.R === 125, `${drive.L},${drive.R}`);
+    btn(4, 0); btn(5, 1); await sleep(300);
+    check("RB 누르는 동안 빠름", drive.L === 255 && drive.R === 255 && effMode === 2, `${drive.L},${drive.R}`);
+    btn(5, 0); await sleep(150);
+    check("RB 놓으면 보통으로", drive.L === 190 && drive.R === 190 && mode === 1, `${drive.L},${drive.R}`);
+    btn(7, 0); await sleep(150);
+    btn(1, 1); await sleep(400);
+    check("B 혼자 = 오른쪽 제자리 회전", drive.L === 160 && drive.R === -160, `${drive.L},${drive.R}`);
+    btn(1, 0); btn(2, 1); await sleep(400);
+    check("X 혼자 = 왼쪽 제자리 회전", drive.L === -160 && drive.R === 160, `${drive.L},${drive.R}`);
+    btn(2, 0); btn(12, 1); await sleep(600);
+    check("십자키 위 = 전진", drive.L === 190 && drive.R === 190, `${drive.L},${drive.R}`);
+    btn(1, 1); await sleep(400);
+    check("십자키 위 + B = 오른쪽 곡선", drive.L === 190 && drive.R === 67, `${drive.L},${drive.R}`);
+    btn(1, 0); btn(12, 0); await sleep(150);
+    btn(14, 1); btn(15, 1); await sleep(300);
+    check("십자키 좌우는 안 씀", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
+    btn(14, 0); btn(15, 0);
+    fake.axes[1] = -1; btn(2, 1); await sleep(600);
+    check("왼쪽 스틱 위 + X = 왼쪽 곡선 (섞어 쓰기)", drive.L === 67 && drive.R === 190, `${drive.L},${drive.R}`);
+    fake.axes[1] = 0; btn(2, 0); btn(12, 1); fake.axes[2] = 1; await sleep(600);
+    check("십자키 위 + 오른쪽 스틱 = 오른쪽 곡선 (섞어 쓰기)", drive.L === 190 && drive.R === 67, `${drive.L},${drive.R}`);
+    btn(12, 0); fake.axes[2] = 0; await sleep(150);
+    btn(7, 1); kd("Space"); await sleep(150);
+    check("패드 모드에서도 Space 비상 정지", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
+    ku("Space"); kd("ArrowUp"); await sleep(400);
+    check("패드 모드에선 키보드 방향키 무시", keys.up === false, `${drive.L},${drive.R}`);
+    ku("ArrowUp");
+    Object.defineProperty(navigator, "getGamepads", { value:() => [null], configurable:true }); await sleep(150);
+    check("패드 빠지면 정지", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
+    btn(7, 0);
+    setInputSrc("key");
+    Object.defineProperty(navigator, "getGamepads", { value:realGet, configurable:true });
+
+    window.dispatchEvent(new Event("blur"));
+    await sleep(120);
+    check("창 벗어나면 정지", drive.L === 0 && drive.R === 0 && !keys.up, `${drive.L},${drive.R}`);
+    const pre = document.createElement("pre");
+    pre.id = "selftest";
+    pre.textContent = out.join("\n");
+    document.body.appendChild(pre);
+  })();
+}
+</script>
+</body>
+</html>
