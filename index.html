@@ -741,7 +741,7 @@ function computeDrive(dt) {
   } else if (steerStick !== 0) {
     drive.steer = steerStick;
   } else {
-    drive.steer = approach(drive.steer, 0, dt / 60);
+    drive.steer = 0;          // 조향은 떼는 즉시 0 (서서히 풀면 뗀 뒤에도 조금 더 돈다)
   }
 
   const maxPwm = tune["max" + effMode];
@@ -1010,8 +1010,12 @@ if (location.hash === "#selftest") {
     const ku = (code, target) => (target || window).dispatchEvent(new KeyboardEvent("keyup", { code, key:code, bubbles:true, cancelable:true }));
     kd("ArrowUp"); kd("ArrowLeft"); await sleep(600);
     check("방향키 ↑+← 왼쪽 곡선", drive.R === 190 && drive.L === 67, `${drive.L},${drive.R}`);
-    ku("ArrowUp"); ku("ArrowLeft"); await sleep(120);
+    ku("ArrowLeft"); await sleep(60);
+    check("조향 키 떼면 다음 명령부터 바로 직진", drive.L === 190 && drive.R === 190, `${drive.L},${drive.R}`);
+    ku("ArrowUp"); await sleep(120);
     check("방향키 떼면 정지", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
+    kd("ArrowRight"); await sleep(400); ku("ArrowRight"); await sleep(60);
+    check("제자리 회전도 떼면 바로 멈춤", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
 
     // 조정 칸 직접 입력
     const inp = $("t_max1");
