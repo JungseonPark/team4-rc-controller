@@ -691,6 +691,8 @@ document.querySelectorAll(".mode").forEach((el) => el.addEventListener("click", 
 // ==================================================
 const drive = { thr:0, steer:0, L:0, R:0 };
 let lastTick = performance.now();
+const PIVOT_HOLD_MS = 150;   // 앞뒤 키를 뗀 뒤 이 시간 동안은 제자리 회전을 시작하지 않는다
+let pivotHold = 0;
 
 function approach(cur, target, step) {
   if (cur < target) return Math.min(target, cur + step);
@@ -748,8 +750,12 @@ function computeDrive(dt) {
   const minPwm = Math.min(tune.minPwm, maxPwm);
   let L = 0, R = 0;
   const a = Math.abs(drive.thr), s = Math.abs(drive.steer);
+  pivotHold = a > 0.001 ? PIVOT_HOLD_MS : Math.max(0, pivotHold - dt);
 
-  if (a < 0.001 && s > 0.001) {
+  if (a < 0.001 && s > 0.001 && pivotHold > 0) {
+    // 달리다가 앞뒤 키를 막 뗀 순간: 조향 키를 거의 같이 떼는 중일 수 있으니 제자리 회전을 바로 시작하지 않는다
+    L = 0; R = 0;
+  } else if (a < 0.001 && s > 0.001) {
     // 제자리 회전
     const pv = minPwm + (Math.min(tune.pivotPwm, 255) - minPwm) * s;
     const dir = Math.sign(drive.steer);   // +1 오른쪽
@@ -1016,6 +1022,17 @@ if (location.hash === "#selftest") {
     check("방향키 떼면 정지", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
     kd("ArrowRight"); await sleep(400); ku("ArrowRight"); await sleep(60);
     check("제자리 회전도 떼면 바로 멈춤", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
+    // 달리다가 앞뒤 키를 조향 키보다 조금 먼저 떼도 제자리 회전이 튀어나오면 안 된다
+    kd("ArrowUp"); kd("ArrowRight"); await sleep(600);
+    ku("ArrowUp"); await sleep(60);
+    check("앞뒤 키를 먼저 뗀 직후엔 제자리 회전 안 함", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
+    ku("ArrowRight"); await sleep(250);
+    check("이어서 조향 키도 떼면 그대로 정지", drive.L === 0 && drive.R === 0, `${drive.L},${drive.R}`);
+    // 일부러 조향 키를 계속 누르고 있으면 잠시 뒤 제자리 회전
+    kd("ArrowUp"); kd("ArrowRight"); await sleep(600);
+    ku("ArrowUp"); await sleep(400);
+    check("조향 키를 계속 누르면 제자리 회전", drive.L === 160 && drive.R === -160, `${drive.L},${drive.R}`);
+    ku("ArrowRight"); await sleep(60);
 
     // 조정 칸 직접 입력
     const inp = $("t_max1");
