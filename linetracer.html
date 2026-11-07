@@ -1,0 +1,1104 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4조 라인트레이서 뷰어</title>
+<style>
+  :root {
+    --bg:#f3f5f8; --card:#fff; --ink:#15191e; --sub:#5d6672; --faint:#98a2ae; --line:#dde2e8;
+    --accent:#1e3a5f; --accent2:#2f6fb5; --left:#2f6fb5; --right:#d9480f;
+    --ok:#1f7a4d; --okbg:#e2f3e9; --warn:#9a5b00; --warnbg:#fff1dc; --bad:#b3261e; --badbg:#fde8e6;
+  }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  html, body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 -apple-system, "Apple SD Gothic Neo", sans-serif; }
+  header { display:flex; align-items:center; gap:10px; padding:12px 22px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; flex-wrap:wrap; }
+  header h1 { font-size:18px; margin:0; flex:1; min-width:220px; }
+  header h1 small { font-size:12px; color:var(--faint); font-weight:500; margin-left:6px; }
+  button { font:inherit; font-weight:600; border-radius:8px; padding:8px 14px; cursor:pointer; border:1px solid var(--accent); background:var(--accent); color:#fff; }
+  button.ghost { background:#fff; color:var(--accent); }
+  button.big { font-size:18px; padding:12px 22px; border-radius:10px; }
+  button.go { background:var(--ok); border-color:var(--ok); }
+  button.stop { background:var(--bad); border-color:var(--bad); }
+  button:disabled { opacity:.4; cursor:default; }
+  main { display:grid; grid-template-columns:minmax(0, 5fr) minmax(0, 7fr); gap:14px; padding:16px 22px 28px; max-width:1400px; margin:0 auto; }
+  .col { display:flex; flex-direction:column; gap:14px; min-width:0; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; min-width:0; }
+  h2 { font-size:13px; letter-spacing:.02em; color:var(--accent); margin:0 0 10px; }
+  .steps { display:flex; gap:8px; flex-wrap:wrap; font-size:13px; color:var(--sub); margin:0 22px; padding-top:12px; max-width:1356px; }
+  .steps span { background:#fff; border:1px solid var(--line); border-radius:20px; padding:4px 12px; }
+  .steps b { color:var(--accent); margin-right:4px; }
+  .banner { font-size:22px; font-weight:800; padding:14px 18px; border-radius:10px; }
+  .banner small { display:block; font-size:13px; font-weight:500; margin-top:2px; }
+  .banner.off { background:#eef1f4; color:var(--sub); }
+  .banner.ok { background:var(--okbg); color:var(--ok); }
+  .banner.run { background:#e8f1fb; color:var(--accent2); }
+  .banner.warn { background:var(--warnbg); color:var(--warn); }
+  .banner.bad { background:var(--badbg); color:var(--bad); }
+  .sensors { display:flex; justify-content:center; gap:14px; margin:16px 0 6px; }
+  .sdot { width:44px; height:44px; border-radius:50%; border:3px solid var(--line); background:#fff; display:flex; align-items:center; justify-content:center; font:700 12px Menlo, monospace; color:var(--faint); }
+  .sdot.on { background:#15191e; border-color:#15191e; color:#fff; }
+  .scap { text-align:center; font-size:12px; color:var(--sub); }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .row.center { justify-content:center; }
+  .hint { font-size:12px; color:var(--sub); }
+  kbd { display:inline-block; padding:0 6px; border:1px solid var(--line); border-bottom-width:2px; border-radius:5px; font:600 12px Menlo, monospace; background:#fafbfc; }
+  .tune { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px 16px; }
+  .field label { display:block; font-size:13px; font-weight:600; }
+  .field .inrow { display:flex; align-items:center; gap:6px; margin:3px 0 1px; }
+  .field input { width:84px; font:600 15px Menlo, monospace; padding:5px 8px; border:1px solid var(--line); border-radius:6px; color:var(--ink); background:#fff; }
+  .field input:focus { outline:2px solid var(--accent2); outline-offset:0; }
+  .field input.changed { border-color:var(--warn); background:var(--warnbg); }
+  .field .note { font-size:11px; color:var(--faint); }
+  .tiles { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; }
+  .tile { background:#f7f9fb; border-radius:8px; padding:8px 12px; }
+  .tile span { display:block; font-size:12px; color:var(--sub); }
+  .tile b { font-size:24px; font-variant-numeric:tabular-nums; }
+  .tile em { font-style:normal; font-size:12px; color:var(--faint); margin-left:3px; }
+  .tile.alert b { color:var(--bad); }
+  .tips { margin:12px 0 0; padding-left:18px; font-size:13px; }
+  .tips li { margin-bottom:4px; }
+  .runhead { display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+  .runhead h2 { margin:0; font-size:16px; }
+  .runhead .meta { font-size:12px; color:var(--sub); }
+  .notes { display:grid; grid-template-columns:140px 1fr; gap:8px 10px; align-items:center; margin-top:12px; }
+  .notes input { font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; width:100%; }
+  .charts canvas { display:block; width:100%; border-radius:6px; background:#fafbfc; margin-bottom:6px; }
+  .chartcap { font-size:12px; color:var(--sub); margin:8px 0 2px; display:flex; gap:12px; flex-wrap:wrap; }
+  .chartcap i { display:inline-block; width:12px; height:3px; vertical-align:middle; margin-right:4px; }
+  .readout { font:12px Menlo, monospace; color:var(--ink); min-height:18px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:6px 6px; border-bottom:1px solid #eef1f4; white-space:nowrap; }
+  th { font-size:12px; color:var(--sub); font-weight:600; }
+  tr.sel td { background:#eaf2fb; }
+  tbody tr { cursor:pointer; }
+  .log { font:12px/1.6 Menlo, monospace; color:var(--sub); max-height:150px; overflow:auto; margin:0; white-space:pre-wrap; }
+  .empty { color:var(--faint); font-size:13px; padding:20px 0; text-align:center; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px; border-radius:10px; font-weight:600; z-index:20; }
+  @media (max-width:1000px) { main { grid-template-columns:1fr; } .tiles { grid-template-columns:repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>4조 라인트레이서 뷰어 <small>팀 미션 #3·#4</small></h1>
+  <button id="btnBle">블루투스 연결</button>
+  <button id="btnUsb" class="ghost">USB 연결</button>
+  <button id="btnSim" class="ghost">시뮬레이션</button>
+  <button id="btnOff" class="ghost" hidden>연결 끊기</button>
+</header>
+<div class="steps">
+  <span><b>1</b>차를 켜고 [블루투스 연결]</span>
+  <span><b>2</b>[출발] 또는 차의 버튼</span>
+  <span><b>3</b>차가 멈추면 기록이 자동으로 들어옴</span>
+  <span><b>4</b>[파일로 저장] 해서 보내기</span>
+  <span>HM-10이 없으면: 버튼으로 달린 뒤 USB를 꽂고 [USB 연결] → 마지막 주행이 들어옴</span>
+</div>
+<main>
+  <div class="col">
+    <section class="card">
+      <div id="banner" class="banner off">연결 안 됨<small>크롬에서 [블루투스 연결]을 누르고 차(HMSoft 등)를 고르세요.</small></div>
+      <div class="sensors" id="sensors"></div>
+      <div class="scap" id="scap">센서 (왼쪽 → 오른쪽) · 검정 위면 까맣게</div>
+      <div class="row center" style="margin-top:14px">
+        <button id="btnGo" class="big go" disabled>▶ 출발</button>
+        <button id="btnStop" class="big stop" disabled>■ 정지</button>
+        <button id="btnLap" class="big ghost" disabled>랩 표시</button>
+      </div>
+      <p class="hint" style="text-align:center; margin:8px 0 0">랩 표시는 차가 출발선을 지날 때 누르거나 <kbd>Space</kbd>. 2바퀴 기록을 재는 데 씁니다.</p>
+    </section>
+
+    <section class="card">
+      <h2>설정 <span class="hint" style="font-weight:500">· 숫자를 바꾸고 <kbd>Enter</kbd> 또는 [적용]</span></h2>
+      <div class="tune" id="tune"></div>
+      <div class="row" style="margin-top:12px">
+        <button id="btnApply">적용</button>
+        <button id="btnSave" class="ghost">차에 저장 (전원 꺼도 유지)</button>
+        <button id="btnDefault" class="ghost">처음 값</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>차 메시지</h2>
+      <pre class="log" id="log"></pre>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="card" id="runCard">
+      <div class="runhead">
+        <h2 id="runTitle">아직 주행 기록이 없습니다</h2>
+        <span class="meta" id="runMeta"></span>
+      </div>
+      <div id="runBody" hidden>
+        <div class="tiles" id="tiles"></div>
+        <ul class="tips" id="tips"></ul>
+        <div class="notes">
+          <label for="noteBat">출발 전 건전지 전압</label><input id="noteBat" placeholder="예: 12.4 (멀티미터로 잰 값, V)">
+          <label for="noteMemo">메모</label><input id="noteMemo" placeholder="예: 실리콘 바퀴, 2바퀴 완주, 두 번째 커브에서 흔들림">
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button id="btnExport">이 주행 파일로 저장</button>
+          <button id="btnCopy" class="ghost">텍스트로 복사</button>
+        </div>
+      </div>
+      <p class="empty" id="runEmpty">차가 한 번 달리고 멈추면 여기에 결과와 그래프가 나옵니다.</p>
+    </section>
+
+    <section class="card charts" id="chartCard" hidden>
+      <h2>그래프 <span class="hint" style="font-weight:500">· 마우스를 올리면 그 순간 값</span></h2>
+      <div class="chartcap">센서 (위 = 왼쪽 끝, 까만 칸 = 검정 위)</div>
+      <canvas id="cvS" height="90"></canvas>
+      <div class="chartcap">라인 위치 (가운데 0, 위 = 라인이 오른쪽) · <span><i style="background:#f8c4c0;height:10px"></i>라인 놓침</span><span><i style="background:#7048e8"></i>랩 표시</span></div>
+      <canvas id="cvE" height="150"></canvas>
+      <div class="chartcap">바퀴 출력 · <span><i style="background:var(--left)"></i>왼쪽</span><span><i style="background:var(--right)"></i>오른쪽</span><span>(255 = 최대, 아래 = 거꾸로)</span></div>
+      <canvas id="cvW" height="150"></canvas>
+      <div class="readout" id="readout"></div>
+    </section>
+
+    <section class="card">
+      <div class="runhead">
+        <h2 style="font-size:13px">지난 주행</h2>
+        <div class="row">
+          <button id="btnRedump" class="ghost" disabled>지난 주행 다시 받기</button>
+          <button id="btnExportAll" class="ghost">전체 기록 파일로 저장</button>
+          <button id="btnDelete" class="ghost">선택한 기록 지우기</button>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>받은 시각</th><th>주행</th><th>놓침</th><th>v / kp / kd</th><th>메모</th></tr></thead>
+        <tbody id="hist"></tbody>
+      </table>
+      <p class="empty" id="histEmpty">저장된 기록이 없습니다. 기록은 이 브라우저에 최근 40개까지 남습니다.</p>
+    </section>
+  </div>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+// ==================================================
+// 공통
+// ==================================================
+const $ = (id) => document.getElementById(id);
+const enc = new TextEncoder();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const RUNS_KEY = "lt3-runs-v1";
+const MAX_RUNS = 40;
+const STATE_NAME = ["대기 중", "출발 대기", "주행 중"];
+const REASON_NAME = ["-", "라인을 못 찾음", "전부 검정 (들어 올림)", "stop 명령", "버튼"];
+
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { t.hidden = true; }, 2200);
+}
+function log(msg) {
+  const d = new Date();
+  const ts = [d.getHours(), d.getMinutes(), d.getSeconds()].map((v) => String(v).padStart(2, "0")).join(":");
+  const el = $("log");
+  el.textContent = `${ts}  ${msg}\n` + el.textContent.slice(0, 6000);
+}
+function xorSum(s) { let x = 0; for (let i = 0; i < s.length; i++) x ^= s.charCodeAt(i); return x; }
+function packet(body) { return "#" + body + "*" + xorSum(body).toString(16).toUpperCase().padStart(2, "0"); }
+
+// '#내용*CS' 줄을 확인해서 필드 배열로. 체크섬이 틀리면 null
+function parsePacket(line) {
+  const m = /^#([^*]*)\*([0-9A-Fa-f]{2})$/.exec(line.trim());
+  if (!m) return null;
+  if (xorSum(m[1]) !== parseInt(m[2], 16)) return null;
+  return m[1].split(",");
+}
+
+// ==================================================
+// 연결: 블루투스(HM-10) / USB(Web Serial) / 시뮬레이션
+// ==================================================
+class LineSplitter {
+  constructor(onLine) { this.buf = ""; this.onLine = onLine; this.dec = new TextDecoder(); }
+  push(bytes) {
+    this.buf += typeof bytes === "string" ? bytes : this.dec.decode(bytes, { stream:true });
+    let i;
+    while ((i = this.buf.indexOf("\n")) >= 0) {
+      const line = this.buf.slice(0, i).replace(/\r/g, "");
+      this.buf = this.buf.slice(i + 1);
+      if (line) this.onLine(line);
+    }
+    if (this.buf.length > 600) this.buf = "";
+  }
+}
+
+class BleLink {
+  constructor(onLine, onState) { this.split = new LineSplitter(onLine); this.onState = onState; this.chain = Promise.resolve(); }
+  async open() {
+    if (!navigator.bluetooth) throw new Error("이 브라우저는 블루투스를 못 씁니다. 크롬으로 여세요.");
+    this.device = await navigator.bluetooth.requestDevice({
+      filters:[{ services:[0xffe0] }, { namePrefix:"HM" }, { namePrefix:"BT" }, { namePrefix:"JDY" }, { namePrefix:"MLT" }, { namePrefix:"CC41" }],
+      optionalServices:[0xffe0],
+    });
+    this.device.addEventListener("gattserverdisconnected", () => this.onState("off"));
+    this.onState("connecting");
+    const server = await this.device.gatt.connect();
+    const svc = await server.getPrimaryService(0xffe0);
+    this.ch = await svc.getCharacteristic(0xffe1);
+    this.ch.addEventListener("characteristicvaluechanged", (e) => this.split.push(new Uint8Array(e.target.value.buffer)));
+    await this.ch.startNotifications();
+    this.noResp = !!this.ch.properties.writeWithoutResponse;
+    this.onState("connected", this.device.name || "HM-10");
+  }
+  write(text) {
+    const data = enc.encode(text);
+    this.chain = this.chain.then(async () => {
+      for (let i = 0; i < data.length; i += 20) {
+        const part = data.slice(i, i + 20);
+        try { if (this.noResp) await this.ch.writeValueWithoutResponse(part); else await this.ch.writeValue(part); }
+        catch (e) { log("보내기 실패: " + e.message); }
+      }
+    });
+    return this.chain;
+  }
+  async close() { try { if (this.device && this.device.gatt.connected) this.device.gatt.disconnect(); } catch (e) {} this.onState("off"); }
+}
+
+class UsbLink {
+  constructor(onLine, onState) { this.split = new LineSplitter(onLine); this.onState = onState; }
+  async open() {
+    if (!navigator.serial) throw new Error("이 브라우저는 USB 연결을 못 씁니다. 크롬으로 여세요.");
+    this.port = await navigator.serial.requestPort();
+    await this.port.open({ baudRate:115200 });
+    this.onState("connecting");
+    this.writer = this.port.writable.getWriter();
+    this.reading = true;
+    (async () => {
+      while (this.reading && this.port.readable) {
+        this.reader = this.port.readable.getReader();
+        try {
+          while (true) { const { value, done } = await this.reader.read(); if (done) break; if (value) this.split.push(value); }
+        } catch (e) { /* 끊김 */ } finally { this.reader.releaseLock(); }
+      }
+    })();
+    await sleep(2000);    // USB를 열면 아두이노가 다시 켜지므로 잠깐 기다린다
+    this.onState("connected", "USB");
+  }
+  write(text) { return this.writer ? this.writer.write(enc.encode(text)) : Promise.resolve(); }
+  async close() {
+    this.reading = false;
+    try { if (this.reader) await this.reader.cancel(); } catch (e) {}
+    try { if (this.writer) { this.writer.releaseLock(); } await this.port.close(); } catch (e) {}
+    this.onState("off");
+  }
+}
+
+// 차 없이 미리 보기: 펌웨어와 같은 줄을 주고받는 가짜 차 (타원 트랙, 센서 5개, 같은 PD 제어)
+class SimLink {
+  constructor(onLine, onState) {
+    this.onLine = onLine; this.onState = onState;
+    this.cfg = { kp:100, kd:2, v:150, vmin:100, slow:40, acc:12, rev:80, spin:170, delay:2000, log:50 };
+    this.saved = { ...this.cfg };
+    this.N = 5; this.state = 0; this.runId = 0; this.viewer = false; this.out = []; this.dropChunk = -1;
+    this.log = []; this.lastStatus = 0; this.dump = null;
+  }
+  async open() {
+    this.onState("connecting");
+    this.timer = setInterval(() => this.tick(), 20);
+    this.t = 0;
+    this.placeOnLine();
+    this.say("TeamMission3 line tracer ready (시뮬레이션)");
+    this.send(this.cfgBody());
+    this.onState("connected", "시뮬레이션");
+  }
+  async close() { clearInterval(this.timer); this.onState("off"); }
+  say(text) { this.out.push(text); }
+  send(body) { this.out.push(packet(body)); }
+  cfgBody() { const c = this.cfg; return `C,${Math.round(c.kp * 10)},${Math.round(c.kd * 10)},${c.v},${c.vmin},${c.slow},${c.acc},${c.rev},${c.spin},${c.delay},${c.log},${this.N}`; }
+  write(text) {
+    for (const raw of text.split("\n")) {
+      const line = raw.trim().toLowerCase();
+      if (line) setTimeout(() => this.command(line), 15);
+    }
+    return Promise.resolve();
+  }
+  command(line) {
+    const [cmd, arg] = line.split(/\s+/);
+    const has = arg !== undefined && arg !== "";
+    const val = Number(arg);
+    if (cmd === "x" || cmd === "stop") return this.stop(3);
+    if (cmd === "g" || cmd === "go") return this.go();
+    if (this.state === 2 && !has) return;
+    if (cmd === "v1") { this.viewer = true; this.send(this.cfgBody()); return; }
+    if (cmd === "v0") { this.viewer = false; return; }
+    if (cmd === "cfg") { this.send(this.cfgBody()); return; }
+    if (cmd === "save") { this.saved = { ...this.cfg }; this.say("저장함"); return; }
+    if (cmd === "default") { this.cfg = { kp:100, kd:2, v:150, vmin:100, slow:40, acc:12, rev:80, spin:170, delay:2000, log:50 }; this.send(this.cfgBody()); return; }
+    if (cmd === "dump") { this.startDump(); return; }
+    if (cmd === "dumpc") { if (this.dump && has) this.dump.extra.push(val); return; }
+    const keys = { kp:"kp", kd:"kd", v:"v", vmin:"vmin", slow:"slow", acc:"acc", rev:"rev", spin:"spin", delay:"delay", log:"log" };
+    if (has && keys[cmd] && Number.isFinite(val)) {
+      const iv = Math.max(0, Math.min(255, Math.trunc(val)));
+      if (cmd === "kp" || cmd === "kd") this.cfg[cmd] = val;
+      else if (cmd === "delay") this.cfg.delay = Math.max(0, Math.min(10000, Math.trunc(val)));
+      else if (cmd === "log") this.cfg.log = Math.max(10, Math.min(200, iv));
+      else if (cmd === "acc") this.cfg.acc = Math.max(1, iv);
+      else this.cfg[cmd] = iv;
+      if (this.state === 2) this.say("ok"); else this.send(this.cfgBody());
+    }
+  }
+  // ---- 가짜 트랙과 차 ----
+  placeOnLine() { this.car = { x:0, y:-0.4, th:0, vl:0, vr:0 }; this.phi = Math.atan2(-0.4, 0); this.turned = 0; }
+  trackDist(px, py) {
+    const a = 0.5, r = 0.4, qx = Math.max(-a, Math.min(a, px));
+    const dx = px - qx, dy = py;
+    if (dx !== 0 || dy !== 0) return Math.abs(Math.hypot(dx, dy) - r);
+    return r;
+  }
+  readBits() {
+    const c = this.car, cs = Math.cos(c.th), sn = Math.sin(c.th);
+    let bits = 0;
+    for (let i = 0; i < this.N; i++) {
+      const lat = ((this.N - 1) / 2 - i) * 0.018;
+      const sx = c.x + cs * 0.11 - sn * lat, sy = c.y + sn * 0.11 + cs * lat;
+      if (this.lifted || this.trackDist(sx, sy) <= 0.0125 + (Math.random() - 0.5) * 0.002) bits |= 1 << i;
+    }
+    return bits;
+  }
+  linePos(bits) {
+    let sum = 0, cnt = 0, groups = 0, prev = false;
+    for (let i = 0; i < this.N; i++) { const b = (bits >> i) & 1; if (b) { sum += 2 * i - (this.N - 1); cnt++; if (!prev) groups++; } prev = !!b; }
+    return cnt ? { e:sum / cnt / (this.N - 1), groups } : null;
+  }
+  go() {
+    if (this.state !== 0) return;
+    const p = this.linePos(this.readBits());
+    if (!p || p.groups !== 1 || this.readBits() === (1 << this.N) - 1) { this.say("출발 안 함: 센서가 라인 하나를 보도록 차를 놓으세요"); return; }
+    this.state = 1; this.stateAt = this.t; this.say("출발 대기 (버튼이나 x 로 취소)");
+  }
+  startRun() {
+    this.state = 2; this.runId++; this.runCfg = { ...this.cfg };
+    this.c = { lastSide:0, lastE:0, eSeen:0, rate:0, eChange:this.t, base:0, lost:false, lostAt:0, allBlack:false, abAt:0, lostCount:0, cross:0, split:0, maxE:0 };
+    const p = this.linePos(this.readBits()); this.c.eSeen = this.c.lastE = p ? p.e : 0;
+    this.log = []; this.logTick = 0; this.runStart = this.t; this.L = 0; this.R = 0; this.sat = false; this.bits = this.readBits();
+    this.lifted = false; this.turned = 0; this.phi = Math.atan2(this.car.y, this.car.x);
+    this.send(`R,${this.runId}`);
+    this.logSample();
+  }
+  logSample() {
+    if (this.log.length >= 260) this.log.shift();
+    this.log.push([(this.bits & 0x7f) | (this.sat ? 0x80 : 0), Math.max(-128, Math.min(127, Math.trunc(this.L / 2))), Math.max(-128, Math.min(127, Math.trunc(this.R / 2)))]);
+  }
+  stop(reason) {
+    const was = this.state;
+    this.state = 0; this.L = this.R = 0;
+    if (was === 1) { this.say("출발 취소"); return; }
+    if (was !== 2) return;
+    const ms = Math.round(this.t - this.runStart), c = this.c;
+    this.say(`정지: ${REASON_NAME[reason]} | 주행 ${(ms / 1000).toFixed(2)}초 | 놓침 ${c.lostCount} | 교차 ${c.cross} | 갈라진 입력 ${c.split} | 최대 치우침 ${c.maxE.toFixed(2)}`);
+    this.endBody = `E,${this.runId},${reason},${ms},${c.lostCount},${c.cross},${c.split},${Math.round(c.maxE * 100)}`;
+    this.send(this.endBody);
+    this.lifted = false;
+    setTimeout(() => this.placeOnLine(), 500);
+    this.startDump(300);
+  }
+  startDump(delay = 0) {
+    if (!this.log.length) { this.say("보낼 주행 기록이 없음"); return; }
+    this.dump = { next:-2, at:this.t + delay, extra:[], dropped:false };
+  }
+  chunkBody(k) {
+    let hex = "";
+    for (let i = k * 16; i < Math.min(this.log.length, k * 16 + 16); i++) for (const b of this.log[i]) hex += ((b + 256) & 255).toString(16).toUpperCase().padStart(2, "0");
+    return `D,${this.runId},${k},${hex}`;
+  }
+  control(dt) {
+    const cfg = this.runCfg, c = this.c, now = this.t, bits = this.readBits(), ALL = (1 << this.N) - 1;
+    this.bits = bits; this.sat = false;
+    let l, r;
+    if (bits === 0) {
+      if (!c.lost) { c.lost = true; c.lostAt = now; c.lostCount++; }
+      c.allBlack = false;
+      if (c.base > cfg.vmin) c.base = cfg.vmin;
+      const t = now - c.lostAt;
+      if (t > 1500) return this.stop(1);
+      if (c.lastSide === 0 || (Math.abs(c.lastE) < 0.3 && t < 120)) { l = r = cfg.vmin; }
+      else if (c.lastSide < 0) { l = -cfg.rev; r = cfg.spin; } else { l = cfg.spin; r = -cfg.rev; }
+    } else {
+      const re = c.lost; c.lost = false;
+      if (bits === ALL) {
+        if (!c.allBlack) { c.allBlack = true; c.abAt = now; c.cross++; }
+        if (now - c.abAt > 400) return this.stop(2);
+        l = r = Math.trunc(c.base);
+      } else {
+        c.allBlack = false;
+        const p = this.linePos(bits), e = p.e;
+        if (p.groups > 1) c.split++;
+        if (re) { c.eSeen = e; c.eChange = now; c.rate = 0; }
+        else if (e !== c.eSeen) { const d = Math.max(5, now - c.eChange); c.rate = Math.max(-15, Math.min(15, (e - c.eSeen) * 1000 / d)); c.eSeen = e; c.eChange = now; }
+        else if (now - c.eChange > 80) c.rate = 0;
+        c.lastE = e; if (e <= -0.3) c.lastSide = -1; else if (e >= 0.3) c.lastSide = 1;
+        c.maxE = Math.max(c.maxE, Math.abs(e));
+        const target = Math.max(cfg.vmin, cfg.v - cfg.slow * Math.abs(e));
+        c.base = target < c.base ? target : Math.min(target, c.base + cfg.acc / 10);
+        const corr = cfg.kp * e + cfg.kd * c.rate;
+        l = Math.trunc(c.base) + Math.trunc(corr); r = Math.trunc(c.base) - Math.trunc(corr);
+        const over = Math.max(l, r) - 255; if (over > 0) { l -= over; r -= over; this.sat = true; }
+        l = Math.max(l, -cfg.rev); r = Math.max(r, -cfg.rev);
+      }
+    }
+    this.L = l; this.R = r;
+  }
+  physics(dt) {
+    const c = this.car, target = (p) => (p === 0 ? 0 : Math.sign(p) * Math.max(0, (Math.abs(p) - 40) / 215) * 1.4);
+    c.vl += (target(this.L) - c.vl) * dt / 0.06;
+    c.vr += (target(this.R) * 0.96 - c.vr) * dt / 0.06;
+    const v = (c.vl + c.vr) / 2; let w = (c.vr - c.vl) / 0.13;
+    if (Math.abs(v) > 0.05 && Math.abs(v * w) > 6) w = Math.sign(w) * 6 / Math.abs(v);
+    c.th += w * dt; c.x += v * Math.cos(c.th) * dt; c.y += v * Math.sin(c.th) * dt;
+    const phi = Math.atan2(c.y, c.x); let d = phi - this.phi;
+    if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI;
+    this.turned += d; this.phi = phi;
+  }
+  tick() {
+    for (let k = 0; k < 20; k++) {
+      this.t += 1;
+      if (this.state === 1 && this.t - this.stateAt >= this.cfg.delay) {
+        const p = this.linePos(this.readBits());
+        if (p && p.groups === 1) this.startRun(); else { this.state = 0; this.say("출발 안 함: 라인이 안 보임"); }
+      } else if (this.state === 2) {
+        this.control(0.001);
+        if (this.state !== 2) break;
+        this.physics(0.001);
+        if (++this.logTick >= this.runCfg.log) { this.logTick = 0; this.logSample(); }
+        // 2바퀴 돌고 0.6초 더 가면 사람이 들어 올린 것처럼
+        if (Math.abs(this.turned) >= 4 * Math.PI + 1.2) this.lifted = true;
+      }
+    }
+    if (this.state !== 2 && this.dump && this.t >= this.dump.at) {
+      const chunks = Math.ceil(this.log.length / 16);
+      if (this.dump.next === -2) { this.send(this.endBody); this.dump.next = -1; }
+      else if (this.dump.next === -1) { this.send(`H,${this.runId},${this.log.length},${this.runCfg.log},${this.N},${this.log.length},${chunks},${Math.round(this.runCfg.kp * 10)},${Math.round(this.runCfg.kd * 10)},${this.runCfg.v},${this.runCfg.vmin},${this.runCfg.slow},${this.runCfg.acc},${this.runCfg.rev},${this.runCfg.spin}`); this.dump.next = 0; }
+      else if (this.dump.next < chunks) {
+        const k = this.dump.next++;
+        if (k === this.dropChunk && !this.dump.dropped) { this.dump.dropped = true; this.dropChunk = -1; }   // 시험용: 한 줄 빠뜨리기
+        else this.send(this.chunkBody(k));
+      } else if (this.dump.next === chunks) { this.send(`Z,${this.runId},${chunks}`); this.dump.next++; }
+      else if (this.dump.extra.length) this.send(this.chunkBody(this.dump.extra.shift()));
+      this.dump.at = this.t + 30;
+    }
+    if (this.state !== 2 && this.viewer && (!this.dump || this.dump.next > Math.ceil(this.log.length / 16)) && this.t - this.lastStatus >= 250) {
+      this.lastStatus = this.t;
+      this.send(`S,${this.state},${this.readBits()},${this.runId}`);
+    }
+    while (this.out.length) this.onLine(this.out.shift());
+  }
+}
+
+// ==================================================
+// 상태
+// ==================================================
+let link = null, linkKind = "", linkState = "off", deviceName = "";
+const car = { state:-1, bits:0, n:5, cfg:null, lastSeen:0 };
+let running = null;      // 주행 중: { id, startAt, laps:[] }
+let incoming = null;     // 기록 받는 중
+let lastEnd = null;      // 마지막 #E
+let runs = [];
+let selected = null;
+try { runs = JSON.parse(localStorage.getItem(RUNS_KEY) || "[]"); } catch (e) { runs = []; }
+function saveRuns() {
+  try { localStorage.setItem(RUNS_KEY, JSON.stringify(runs.slice(0, MAX_RUNS))); }
+  catch (e) { toast("브라우저 저장 공간이 꽉 찼습니다. 오래된 기록을 지우세요."); }
+}
+
+const TUNE = [
+  { id:"kp",    label:"kp 조향 세기",      note:"라인이 끝 센서일 때 더하고 빼는 출력", step:10 },
+  { id:"kd",    label:"kd 흔들림 잡기",    note:"좌우로 흔들리면 올리기", step:1 },
+  { id:"v",     label:"v 직선 출력",       note:"0~255, 클수록 빠름", step:10 },
+  { id:"vmin",  label:"vmin 곡선 최저",    note:"커브에서 가장 느릴 때", step:10 },
+  { id:"slow",  label:"slow 곡선 감속",    note:"커브에서 놓치면 올리기", step:10 },
+  { id:"acc",   label:"acc 가속",          note:"헛돌면 내리기, 255면 바로", step:2 },
+  { id:"rev",   label:"rev 안쪽 역회전",   note:"급커브에서 안쪽 바퀴 거꾸로", step:10 },
+  { id:"spin",  label:"spin 찾기 회전",    note:"라인 놓쳤을 때 도는 출력", step:10 },
+  { id:"delay", label:"delay 출발 대기",   note:"ms, 출발 신호 뒤 기다림", step:500 },
+  { id:"log",   label:"log 기록 간격",     note:"ms, 50이면 약 13초 기록", step:10 },
+];
+
+// ==================================================
+// 받은 줄 처리
+// ==================================================
+function handleLine(line) {
+  car.lastSeen = performance.now();
+  if (line[0] !== "#") { log(line); return; }
+  const f = parsePacket(line);
+  if (!f) { log("깨진 줄 무시: " + line.slice(0, 40)); return; }
+  const n = (i) => Number(f[i]);
+  switch (f[0]) {
+    case "C":
+      car.cfg = { kp:n(1) / 10, kd:n(2) / 10, v:n(3), vmin:n(4), slow:n(5), acc:n(6), rev:n(7), spin:n(8), delay:n(9), log:n(10) };
+      car.n = n(11) || 5;
+      fillTune();
+      break;
+    case "S":
+      car.state = n(1); car.bits = n(2);
+      if (car.state !== 2 && running && performance.now() - running.startAt > 1500 && !lastEnd) { /* #E를 놓쳤을 수도 */ }
+      break;
+    case "R":
+      running = { id:n(1), startAt:performance.now(), laps:[] };
+      car.state = 2;
+      lastEnd = null;
+      log(`주행 #${n(1)} 출발`);
+      break;
+    case "E":
+      lastEnd = { id:n(1), reason:n(2), runMs:n(3), lost:n(4), cross:n(5), split:n(6), maxE:n(7) / 100 };
+      car.state = 0;
+      break;
+    case "H":
+      incoming = {
+        id:n(1), count:n(2), logMs:n(3), n:n(4), total:n(5), chunks:n(6),
+        settings:{ kp:n(7) / 10, kd:n(8) / 10, v:n(9), vmin:n(10), slow:n(11), acc:n(12), rev:n(13), spin:n(14), log:n(3) },
+        data:new Array(n(6)).fill(null), tries:0, timer:null,
+      };
+      armIncomingTimer();
+      break;
+    case "D":
+      if (incoming && n(1) === incoming.id && n(2) < incoming.chunks) {
+        incoming.data[n(2)] = f[3] || "";
+        armIncomingTimer();
+        if (incoming.done) checkIncoming();
+      }
+      break;
+    case "Z":
+      if (incoming && n(1) === incoming.id) { incoming.done = true; checkIncoming(); }
+      break;
+  }
+}
+
+function armIncomingTimer() {
+  if (!incoming) return;
+  clearTimeout(incoming.timer);
+  incoming.timer = setTimeout(() => { if (incoming) { incoming.done = true; checkIncoming(true); } }, 4000);
+}
+
+// 빠진 줄이 있으면 그 줄만 다시 달라고 하고, 다 모이면 저장
+async function checkIncoming(fromTimer) {
+  const inc = incoming;
+  if (!inc) return;
+  const missing = inc.data.map((d, i) => (d === null ? i : -1)).filter((i) => i >= 0);
+  if (!missing.length) { finishIncoming(); return; }
+  if (inc.requesting) return;
+  if (inc.tries >= 3) { finishIncoming(); return; }
+  inc.tries++;
+  inc.requesting = true;
+  log(`빠진 기록 ${missing.length}줄 다시 요청`);
+  for (const i of missing) { if (link) await link.write(`dumpc ${i}\n`); await sleep(160); }
+  inc.requesting = false;
+  armIncomingTimer();
+}
+
+function decodeChunks(inc) {
+  const bits = [], L = [], R = [], sat = [];
+  let missing = 0;
+  for (let k = 0; k < inc.chunks; k++) {
+    const hex = inc.data[k];
+    const want = Math.min(16, inc.count - k * 16);
+    if (hex === null || hex.length !== want * 6) {
+      missing += want;
+      for (let j = 0; j < want; j++) { bits.push(null); L.push(null); R.push(null); sat.push(null); }
+      continue;
+    }
+    for (let j = 0; j < want; j++) {
+      const b = (o) => parseInt(hex.substr(j * 6 + o, 2), 16);
+      const s8 = (v) => (v > 127 ? v - 256 : v);
+      bits.push(b(0) & 0x7f); sat.push(b(0) & 0x80 ? 1 : 0); L.push(s8(b(2)) * 2); R.push(s8(b(4)) * 2);
+    }
+  }
+  return { bits, L, R, sat, missing };
+}
+
+function finishIncoming() {
+  const inc = incoming;
+  if (!inc) return;
+  incoming = null;
+  clearTimeout(inc.timer);
+  const s = decodeChunks(inc);
+  const end = lastEnd && lastEnd.id === inc.id ? lastEnd : null;
+  const laps = running && running.id === inc.id ? running.laps : [];
+  const run = {
+    key:Date.now(), id:inc.id, receivedAt:new Date().toISOString(),
+    car:end, settings:inc.settings, sensors:inc.n, intervalMs:inc.logMs, totalSamples:inc.total,
+    samples:{ bits:s.bits, L:s.L, R:s.R, sat:s.sat }, missing:s.missing, laps,
+    notes:{ battery:"", memo:"" }, device:deviceName,
+  };
+  // 같은 주행을 다시 받은 거면 바꿔 끼운다
+  const dup = runs.findIndex((r) => r.id === run.id && r.car && end && r.car.runMs === end.runMs);
+  if (dup >= 0) { run.notes = runs[dup].notes; run.laps = runs[dup].laps.length ? runs[dup].laps : run.laps; runs.splice(dup, 1); }
+  runs.unshift(run);
+  runs = runs.slice(0, MAX_RUNS);
+  saveRuns();
+  selected = run.key;
+  running = null;
+  renderHistory();
+  renderRun();
+  toast(s.missing ? `기록 받음 (일부 ${s.missing}개 빠짐)` : "주행 기록을 받았습니다");
+  log(`주행 #${run.id} 기록 ${s.bits.length}개 받음${s.missing ? `, ${s.missing}개 빠짐` : ""}`);
+}
+
+// ==================================================
+// 분석
+// ==================================================
+function lineE(bits, n) {
+  if (bits === null || bits === 0) return null;
+  if (bits === (1 << n) - 1) return 0;
+  let sum = 0, cnt = 0;
+  for (let i = 0; i < n; i++) if ((bits >> i) & 1) { sum += 2 * i - (n - 1); cnt++; }
+  return sum / cnt / (n - 1);
+}
+
+function analyze(run) {
+  const { bits, L, R, sat } = run.samples, n = run.sensors, dt = run.intervalMs / 1000;
+  const valid = bits.map((b, i) => (b === null ? -1 : i)).filter((i) => i >= 0);
+  const es = bits.map((b) => lineE(b, n));
+  const lostIdx = valid.filter((i) => bits[i] === 0);
+  const onLine = valid.filter((i) => es[i] !== null);
+  // 흔들림: 라인이 가운데 근처(|e|<0.6)에 있는 동안 좌우가 바뀐 횟수 / 초
+  let flips = 0, prevSign = 0, nearSecs = 0;
+  for (const i of onLine) {
+    if (Math.abs(es[i]) < 0.6) {
+      nearSecs += dt;
+      const sg = es[i] > 0.05 ? 1 : es[i] < -0.05 ? -1 : 0;
+      if (sg && prevSign && sg !== prevSign) flips++;
+      if (sg) prevSign = sg;
+    }
+  }
+  const base = valid.filter((i) => bits[i] !== 0).map((i) => (L[i] + R[i]) / 2);
+  const avgBase = base.length ? base.reduce((a, b) => a + b, 0) / base.length : 0;
+  const fast = valid.filter((i) => Math.max(L[i], R[i]) >= 250 || sat[i]).length;
+  const meanAbsE = onLine.length ? onLine.reduce((a, i) => a + Math.abs(es[i]), 0) / onLine.length : 0;
+  const lapTimes = [];
+  for (let i = 0; i < run.laps.length; i++) lapTimes.push(run.laps[i] - (i ? run.laps[i - 1] : 0));
+  return {
+    es, recordSecs:bits.length * dt,
+    runSecs:run.car ? run.car.runMs / 1000 : bits.length * dt,
+    lost:run.car ? run.car.lost : lostIdx.length ? 1 : 0, lostSecs:lostIdx.length * dt,
+    maxE:run.car ? run.car.maxE : Math.max(0, ...onLine.map((i) => Math.abs(es[i]))),
+    wobble:nearSecs > 0.5 ? flips / nearSecs : 0,
+    avgBase, fastPct:valid.length ? fast / valid.length * 100 : 0, meanAbsE, lapTimes,
+    truncated:run.totalSamples > bits.length,
+  };
+}
+
+function suggestions(run, a) {
+  const tips = [];
+  const st = run.settings;
+  if (a.lost > 0) tips.push(`라인을 ${a.lost}번 놓쳤어요. 커브라면 <b>slow</b>를 20 올리거나 <b>kp</b>를 20 올려 보세요. 계속 놓치면 <b>v</b>를 10 낮추세요.`);
+  if (a.wobble > 2.5) tips.push(`직선에서 좌우로 흔들려요 (초당 ${a.wobble.toFixed(1)}번). <b>kd</b>를 1 올리거나 <b>kp</b>를 20 내려 보세요.`);
+  if (a.lost === 0 && a.wobble <= 2.5 && st.v < 250) tips.push(`안정적이에요. <b>v</b>를 ${st.v} → ${Math.min(255, st.v + 10)}으로 올려 보세요.`);
+  if (a.lost === 0 && st.v >= 250) tips.push(`이미 최고 출력이에요. 기록을 줄이려면 <b>slow</b>를 10 내리거나 <b>vmin</b>을 10 올려 커브 감속을 줄여 보세요.`);
+  if (a.truncated) tips.push(`주행이 기록 길이보다 길어서 마지막 ${a.recordSecs.toFixed(1)}초만 남았어요. 처음부터 보려면 <b>log</b>를 70으로 올리세요.`);
+  if (!tips.length) tips.push("특별한 문제가 안 보여요.");
+  return tips;
+}
+
+// ==================================================
+// 화면
+// ==================================================
+function buildSensors() {
+  const box = $("sensors");
+  if (box.childElementCount === car.n) return;
+  box.innerHTML = "";
+  for (let i = 0; i < car.n; i++) { const d = document.createElement("div"); d.className = "sdot"; d.textContent = "S" + (i + 1); box.appendChild(d); }
+}
+
+function fillTune(force) {
+  if (!car.cfg) return;
+  for (const t of TUNE) {
+    const inp = $("t_" + t.id);
+    if (!inp || (document.activeElement === inp && !force)) continue;
+    inp.value = car.cfg[t.id];
+    inp.classList.remove("changed");
+  }
+}
+
+function buildTune() {
+  const box = $("tune");
+  for (const t of TUNE) {
+    const f = document.createElement("div");
+    f.className = "field";
+    f.innerHTML = `<label for="t_${t.id}">${t.label}</label><div class="inrow"><input id="t_${t.id}" inputmode="decimal" autocomplete="off"></div><div class="note">${t.note}</div>`;
+    box.appendChild(f);
+    const inp = f.querySelector("input");
+    inp.addEventListener("input", () => inp.classList.toggle("changed", car.cfg && String(car.cfg[t.id]) !== inp.value.trim()));
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); applyTune(); inp.blur(); }
+      else if (e.key === "Escape") { fillTune(true); inp.blur(); }
+      else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        e.preventDefault();
+        const v = Number(inp.value) || 0;
+        inp.value = String(+(v + (e.key === "ArrowUp" ? t.step : -t.step)).toFixed(1));
+        inp.dispatchEvent(new Event("input"));
+      }
+    });
+  }
+}
+
+async function applyTune() {
+  if (!link || linkState !== "connected") { toast("먼저 차를 연결하세요"); return; }
+  let sent = 0;
+  for (const t of TUNE) {
+    const inp = $("t_" + t.id);
+    const v = inp.value.trim().replace(/−/g, "-");
+    if (!car.cfg || v === "" || !Number.isFinite(Number(v))) continue;
+    if (Number(v) !== Number(car.cfg[t.id])) { await link.write(`${t.id} ${v}\n`); sent++; await sleep(60); }
+  }
+  toast(sent ? `설정 ${sent}개를 보냈습니다` : "바뀐 설정이 없습니다");
+}
+
+function setBanner(cls, title, sub) {
+  const b = $("banner");
+  b.className = "banner " + cls;
+  b.innerHTML = `${title}<small>${sub}</small>`;
+}
+
+function render() {
+  const now = performance.now();
+  const connected = linkState === "connected";
+  buildSensors();
+  [...$("sensors").children].forEach((d, i) => d.classList.toggle("on", connected && ((car.bits >> i) & 1) === 1));
+  if (!connected) setBanner(linkState === "connecting" ? "warn" : "off", linkState === "connecting" ? "연결 중…" : "연결 안 됨", linkState === "connecting" ? deviceName : "크롬에서 [블루투스 연결]을 누르고 차(HMSoft 등)를 고르세요.");
+  else if (incoming) {
+    const got = incoming.data.filter((d) => d !== null).length;
+    setBanner("warn", `기록 받는 중 ${got}/${incoming.chunks}`, "차를 건드리지 말고 잠깐 기다리세요");
+  } else if (running && car.state === 2) setBanner("run", `주행 중 ${((now - running.startAt) / 1000).toFixed(1)}초`, `랩 ${running.laps.length}번 표시 · 멈추면 기록이 자동으로 들어옵니다`);
+  else if (car.state === 1) setBanner("warn", "출발 대기", "곧 출발합니다. 취소하려면 [정지]");
+  else if (car.state === 0) {
+    const b = car.bits, all = (1 << car.n) - 1;
+    const where = b === 0 ? "센서에 라인이 안 보여요" : b === all ? "센서가 전부 검정이에요 (차를 들었나요?)" : "라인 위에 있어요. 출발할 수 있어요";
+    setBanner("ok", `대기 중 · ${deviceName}`, where);
+  } else setBanner("ok", `연결됨 · ${deviceName}`, "차 상태를 받는 중…");
+  $("btnGo").disabled = !connected || car.state !== 0;
+  $("btnStop").disabled = !connected;
+  $("btnLap").disabled = !(running && car.state === 2);
+  $("btnRedump").disabled = !connected;
+}
+
+function renderHistory() {
+  const tb = $("hist");
+  tb.innerHTML = "";
+  $("histEmpty").hidden = runs.length > 0;
+  for (const r of runs) {
+    const tr = document.createElement("tr");
+    if (r.key === selected) tr.className = "sel";
+    const d = new Date(r.receivedAt);
+    const time = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    const secs = r.car ? (r.car.runMs / 1000).toFixed(2) + "초" : "-";
+    const memo = [r.notes.battery ? r.notes.battery + "V" : "", r.notes.memo].filter(Boolean).join(" · ");
+    tr.innerHTML = `<td>${r.id}</td><td>${time}</td><td>${secs}</td><td>${r.car ? r.car.lost : "-"}</td><td>${r.settings.v} / ${r.settings.kp} / ${r.settings.kd}</td><td></td>`;
+    tr.lastChild.textContent = memo;
+    tr.addEventListener("click", () => { selected = r.key; renderHistory(); renderRun(); });
+    tb.appendChild(tr);
+  }
+}
+
+function currentRun() { return runs.find((r) => r.key === selected) || null; }
+
+function tile(label, value, unit, alert) {
+  return `<div class="tile${alert ? " alert" : ""}"><span>${label}</span><b>${value}</b><em>${unit || ""}</em></div>`;
+}
+
+function renderRun() {
+  const run = currentRun();
+  $("runBody").hidden = !run;
+  $("runEmpty").hidden = !!run;
+  $("chartCard").hidden = !run;
+  if (!run) { $("runTitle").textContent = "아직 주행 기록이 없습니다"; $("runMeta").textContent = ""; return; }
+  const a = analyze(run);
+  const st = run.settings;
+  $("runTitle").textContent = `주행 #${run.id}` + (run.car ? ` · ${REASON_NAME[run.car.reason] || ""}로 정지` : "");
+  $("runMeta").textContent = `v ${st.v} · kp ${st.kp} · kd ${st.kd} · vmin ${st.vmin} · slow ${st.slow} · acc ${st.acc} · rev ${st.rev}`;
+  const lapTxt = a.lapTimes.length >= 2 ? (run.laps[1] / 1000).toFixed(2) : a.lapTimes.length === 1 ? (run.laps[0] / 1000).toFixed(2) : "-";
+  $("tiles").innerHTML =
+    tile("주행 시간", a.runSecs.toFixed(2), "초") +
+    tile(a.lapTimes.length >= 2 ? "2바퀴 (랩 표시)" : "랩 표시까지", lapTxt, lapTxt === "-" ? "랩 표시 없음" : "초") +
+    tile("라인 놓침", a.lost, "번", a.lost > 0) +
+    tile("흔들림", a.wobble.toFixed(1), "번/초", a.wobble > 2.5) +
+    tile("평균 출력", Math.round(a.avgBase), "/ 255") +
+    tile("최고 출력 비율", Math.round(a.fastPct), "%");
+  $("tips").innerHTML = suggestions(run, a).map((t) => `<li>${t}</li>`).join("") + (run.missing ? `<li>전송 중 ${run.missing}개가 빠졌어요. [지난 주행 다시 받기]로 다시 받을 수 있어요.</li>` : "");
+  $("noteBat").value = run.notes.battery || "";
+  $("noteMemo").value = run.notes.memo || "";
+  drawCharts(run, a);
+}
+
+// ---------- 그래프 ----------
+function prepCanvas(cv) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth || 600, h = Number(cv.getAttribute("height"));
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  cv.style.height = h + "px";
+  const g = cv.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  return { g, w, h };
+}
+const PAD_L = 40, PAD_R = 8;
+
+function timeAxis(g, w, h, secs) {
+  g.fillStyle = "#98a2ae"; g.font = "11px Menlo, monospace"; g.textAlign = "center";
+  const step = secs > 20 ? 5 : secs > 8 ? 2 : 1;
+  for (let s = 0; s <= secs; s += step) {
+    const x = PAD_L + (w - PAD_L - PAD_R) * (s / secs);
+    g.strokeStyle = "#eef1f4"; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h - 14); g.stroke();
+    g.fillText(s + "초", x, h - 3);
+  }
+}
+
+function drawCharts(run, a) {
+  const { bits, L, R } = run.samples, n = run.sensors, count = bits.length;
+  const secs = Math.max(count * run.intervalMs / 1000, 0.1);
+  const xOf = (w, i) => PAD_L + (w - PAD_L - PAD_R) * (i / Math.max(count - 1, 1));
+  const lapX = (w, ms) => PAD_L + (w - PAD_L - PAD_R) * (ms / 1000 / secs);
+
+  // 센서 띠
+  let { g, w, h } = prepCanvas($("cvS"));
+  const rowH = (h - 16) / n;
+  for (let s = 0; s < n; s++) {
+    g.fillStyle = "#5d6672"; g.font = "11px Menlo, monospace"; g.textAlign = "right";
+    g.fillText("S" + (s + 1), PAD_L - 6, s * rowH + rowH / 2 + 4);
+  }
+  const cw = Math.max((w - PAD_L - PAD_R) / count, 1);
+  for (let i = 0; i < count; i++) {
+    if (bits[i] === null) { g.fillStyle = "#fde8e6"; g.fillRect(xOf(w, i), 0, cw, h - 16); continue; }
+    for (let s = 0; s < n; s++) if ((bits[i] >> s) & 1) { g.fillStyle = "#15191e"; g.fillRect(xOf(w, i), s * rowH + 1, cw, rowH - 2); }
+  }
+  timeAxis(g, w, h, secs);
+
+  // 라인 위치
+  ({ g, w, h } = prepCanvas($("cvE")));
+  const yE = (e) => 6 + (h - 22) * (1 - (e + 1) / 2);
+  for (let i = 0; i < count; i++) if (bits[i] === 0) { g.fillStyle = "#f8c4c0"; g.fillRect(xOf(w, i), 0, cw, h - 16); }
+  timeAxis(g, w, h, secs);
+  g.strokeStyle = "#c9cfd6"; g.beginPath(); g.moveTo(PAD_L, yE(0)); g.lineTo(w - PAD_R, yE(0)); g.stroke();
+  g.fillStyle = "#98a2ae"; g.font = "11px Menlo, monospace"; g.textAlign = "right";
+  g.fillText("오른쪽", PAD_L - 4, yE(0.85)); g.fillText("0", PAD_L - 4, yE(0) + 4); g.fillText("왼쪽", PAD_L - 4, yE(-0.85) + 6);
+  g.strokeStyle = "#1e3a5f"; g.lineWidth = 2; g.beginPath();
+  let pen = false;
+  for (let i = 0; i < count; i++) {
+    const e = a.es[i];
+    if (e === null) { pen = false; continue; }
+    if (!pen) { g.moveTo(xOf(w, i), yE(e)); pen = true; } else g.lineTo(xOf(w, i), yE(e));
+  }
+  g.stroke(); g.lineWidth = 1;
+  for (const ms of run.laps) { g.strokeStyle = "#7048e8"; g.lineWidth = 2; g.beginPath(); g.moveTo(lapX(w, ms), 0); g.lineTo(lapX(w, ms), h - 16); g.stroke(); g.lineWidth = 1; }
+
+  // 바퀴 출력
+  ({ g, w, h } = prepCanvas($("cvW")));
+  const yW = (v) => 6 + (h - 22) * (1 - (v + 255) / 510);
+  timeAxis(g, w, h, secs);
+  g.strokeStyle = "#c9cfd6"; g.beginPath(); g.moveTo(PAD_L, yW(0)); g.lineTo(w - PAD_R, yW(0)); g.stroke();
+  g.setLineDash([4, 4]); g.beginPath(); g.moveTo(PAD_L, yW(255)); g.lineTo(w - PAD_R, yW(255)); g.stroke(); g.setLineDash([]);
+  g.fillStyle = "#98a2ae"; g.textAlign = "right"; g.font = "11px Menlo, monospace";
+  g.fillText("255", PAD_L - 4, yW(255) + 8); g.fillText("0", PAD_L - 4, yW(0) + 4); g.fillText("-255", PAD_L - 4, yW(-255));
+  const line = (arr, color) => {
+    g.strokeStyle = color; g.lineWidth = 1.6; g.beginPath(); let p = false;
+    for (let i = 0; i < count; i++) { if (arr[i] === null) { p = false; continue; } if (!p) { g.moveTo(xOf(w, i), yW(arr[i])); p = true; } else g.lineTo(xOf(w, i), yW(arr[i])); }
+    g.stroke(); g.lineWidth = 1;
+  };
+  line(L, "#2f6fb5"); line(R, "#d9480f");
+  for (const ms of run.laps) { g.strokeStyle = "#7048e8"; g.beginPath(); g.moveTo(lapX(w, ms), 0); g.lineTo(lapX(w, ms), h - 16); g.stroke(); }
+}
+
+function hover(e) {
+  const run = currentRun();
+  if (!run) return;
+  const cv = e.currentTarget, rect = cv.getBoundingClientRect();
+  const count = run.samples.bits.length;
+  const frac = (e.clientX - rect.left - PAD_L) / (rect.width - PAD_L - PAD_R);
+  const i = Math.round(frac * (count - 1));
+  if (i < 0 || i >= count) { $("readout").textContent = ""; return; }
+  const b = run.samples.bits[i];
+  if (b === null) { $("readout").textContent = "이 구간은 전송 중 빠졌어요"; return; }
+  const pattern = [...Array(run.sensors)].map((_, s) => ((b >> s) & 1 ? "■" : "□")).join("");
+  const ev = lineE(b, run.sensors);
+  $("readout").textContent = `${(i * run.intervalMs / 1000).toFixed(2)}초 · 센서 ${pattern} · 위치 ${ev === null ? "놓침" : ev.toFixed(2)} · 왼쪽 ${run.samples.L[i]} 오른쪽 ${run.samples.R[i]}${run.samples.sat[i] ? " · 최대 출력에 걸림" : ""}`;
+}
+
+// ---------- 저장 ----------
+function exportObject(run) {
+  const a = analyze(run);
+  return {
+    format:"teammission3-run-v1",
+    note:"4조 라인트레이서 주행 기록. samples는 intervalMs 간격, bits는 bit0 = 왼쪽 끝 센서(1 = 검정), L/R은 바퀴 출력(-255~255), sat은 바깥 바퀴가 255에 걸린 순간",
+    run:{ id:run.id, receivedAt:run.receivedAt, device:run.device, car:run.car, missing:run.missing, totalSamples:run.totalSamples },
+    settings:run.settings, sensors:run.sensors, intervalMs:run.intervalMs,
+    notes:run.notes, laps:run.laps,
+    summary:{ runSecs:+a.runSecs.toFixed(2), lost:a.lost, wobblePerSec:+a.wobble.toFixed(2), avgOutput:Math.round(a.avgBase), maxOutputPct:Math.round(a.fastPct), meanAbsPosition:+a.meanAbsE.toFixed(3), lapTimesMs:a.lapTimes },
+    samples:run.samples,
+  };
+}
+function download(name, text) {
+  const blob = new Blob([text], { type:"application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function stamp(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}_${String(d.getHours()).padStart(2, "0")}${String(d.getMinutes()).padStart(2, "0")}`;
+}
+function compactText(run) {
+  const o = exportObject(run);
+  const head = `팀미션3 주행 #${run.id} ${run.receivedAt} | ${JSON.stringify({ car:o.run.car, settings:o.settings, notes:o.notes, laps:o.laps, summary:o.summary })}`;
+  const rows = run.samples.bits.map((b, i) => (b === null ? "-" : `${b.toString(2).padStart(run.sensors, "0").split("").reverse().join("")},${run.samples.L[i]},${run.samples.R[i]}${run.samples.sat[i] ? ",s" : ""}`));
+  return `${head}\n간격 ${run.intervalMs}ms, 한 줄 = 센서(왼쪽→오른쪽),왼쪽출력,오른쪽출력\n${rows.join("\n")}`;
+}
+
+// ==================================================
+// 연결 버튼
+// ==================================================
+function onState(state, name) {
+  linkState = state;
+  if (name) deviceName = name;
+  $("btnOff").hidden = state === "off";
+  $("btnBle").hidden = $("btnUsb").hidden = $("btnSim").hidden = state !== "off";
+  if (state === "connected") {
+    log(`연결됨: ${deviceName}`);
+    setTimeout(() => { if (link) link.write("v1\ncfg\ndump\n"); }, 300);   // 마지막 주행도 받아 온다 (이미 있으면 바꿔 끼움)
+  } else if (state === "off") {
+    log("연결 끊김");
+    car.state = -1;
+  }
+}
+
+async function connect(kind) {
+  if (link) { await link.close(); link = null; }
+  const L = kind === "ble" ? BleLink : kind === "usb" ? UsbLink : SimLink;
+  link = new L(handleLine, onState);
+  linkKind = kind;
+  try { await link.open(); }
+  catch (e) {
+    link = null;
+    onState("off");
+    if (e && e.name === "NotFoundError") toast("선택을 취소했습니다");
+    else { toast("연결 실패"); log("연결 실패: " + (e && e.message ? e.message : e)); }
+  }
+}
+
+$("btnBle").addEventListener("click", (e) => { e.currentTarget.blur(); connect("ble"); });
+$("btnUsb").addEventListener("click", (e) => { e.currentTarget.blur(); connect("usb"); });
+$("btnSim").addEventListener("click", (e) => { e.currentTarget.blur(); connect("sim"); });
+$("btnOff").addEventListener("click", async (e) => { e.currentTarget.blur(); if (link) { await link.write("v0\n"); await link.close(); link = null; } });
+$("btnGo").addEventListener("click", (e) => { e.currentTarget.blur(); if (link) link.write("g\n"); });
+$("btnStop").addEventListener("click", (e) => { e.currentTarget.blur(); if (link) link.write("x\n"); });
+function markLap() {
+  if (!(running && car.state === 2)) return;
+  running.laps.push(Math.round(performance.now() - running.startAt));
+  toast(`랩 ${running.laps.length}: ${(running.laps[running.laps.length - 1] / 1000).toFixed(2)}초`);
+}
+$("btnLap").addEventListener("click", (e) => { e.currentTarget.blur(); markLap(); });
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Space" && !(e.target instanceof HTMLInputElement)) { e.preventDefault(); markLap(); }
+});
+$("btnApply").addEventListener("click", applyTune);
+$("btnSave").addEventListener("click", () => { if (link) { link.write("save\n"); toast("차에 저장했습니다"); } });
+$("btnDefault").addEventListener("click", () => { if (link && confirm("설정을 처음 값으로 되돌릴까요? (차에 저장하려면 그다음 [차에 저장])")) link.write("default\n"); });
+$("btnRedump").addEventListener("click", () => { if (link) { link.write("dump\n"); toast("지난 주행 기록을 다시 요청했습니다"); } });
+$("btnExport").addEventListener("click", () => {
+  const run = currentRun(); if (!run) return;
+  download(`팀미션3_주행기록_${stamp(run.receivedAt)}_${run.id}.json`, JSON.stringify(exportObject(run), null, 1));
+  toast("다운로드 폴더에 저장했습니다");
+});
+$("btnExportAll").addEventListener("click", () => {
+  if (!runs.length) { toast("저장된 기록이 없습니다"); return; }
+  download(`팀미션3_전체기록_${stamp(new Date().toISOString())}.json`, JSON.stringify({ format:"teammission3-runs-v1", runs:runs.map(exportObject) }));
+  toast(`기록 ${runs.length}개를 저장했습니다`);
+});
+$("btnCopy").addEventListener("click", async () => {
+  const run = currentRun(); if (!run) return;
+  try { await navigator.clipboard.writeText(compactText(run)); toast("복사했습니다. 대화창에 붙여 넣으세요"); }
+  catch (e) { toast("복사가 막혔습니다. [파일로 저장]을 쓰세요"); }
+});
+$("btnDelete").addEventListener("click", () => {
+  const run = currentRun(); if (!run) return;
+  if (!confirm(`주행 #${run.id} 기록을 이 브라우저에서 지울까요?`)) return;
+  runs = runs.filter((r) => r.key !== run.key); saveRuns();
+  selected = runs.length ? runs[0].key : null;
+  renderHistory(); renderRun();
+});
+for (const id of ["noteBat", "noteMemo"]) {
+  $(id).addEventListener("change", () => {
+    const run = currentRun(); if (!run) return;
+    run.notes = { battery:$("noteBat").value.trim(), memo:$("noteMemo").value.trim() };
+    saveRuns(); renderHistory();
+  });
+}
+for (const id of ["cvS", "cvE", "cvW"]) { $(id).addEventListener("mousemove", hover); $(id).addEventListener("mouseleave", () => { $("readout").textContent = ""; }); }
+window.addEventListener("resize", () => { const r = currentRun(); if (r) drawCharts(r, analyze(r)); });
+
+buildTune();
+selected = runs.length ? runs[0].key : null;
+renderHistory();
+renderRun();
+setInterval(render, 100);    // 탭이 뒤에 있어도 버튼 상태가 맞도록 rAF 대신 0.1초마다
+render();
+
+// ==================================================
+// 자체 점검: 주소 끝에 #selftest
+// ==================================================
+if (location.hash === "#selftest") {
+  (async () => {
+    const out = [];
+    const check = (name, ok, info = "") => out.push(`${ok ? "통과" : "실패"} ${name}${info !== "" ? "  " + info : ""}`);
+    localStorage.removeItem(RUNS_KEY); runs = []; selected = null;
+    check("체크섬 맞는 줄", JSON.stringify(parsePacket(packet("C,1000,20"))) === JSON.stringify(["C", "1000", "20"]));
+    check("체크섬 틀린 줄 거부", parsePacket("#C,1000,20*00") === null);
+    check("뷰어용이 아닌 줄은 차 메시지", (handleLine("정지: 시험"), $("log").textContent.includes("정지: 시험")));
+
+    await connect("sim");
+    await sleep(1500);
+    check("연결되면 설정 받음", car.cfg && car.cfg.kp === 100 && $("t_kp").value === "100", car.cfg && car.cfg.kp);
+    check("멈춰 있을 때 센서 상태 받음", car.state === 0 && car.bits !== 0, `상태 ${car.state} 센서 ${car.bits}`);
+    $("t_v").value = "180"; await applyTune(); await sleep(800);
+    check("설정 바꾸면 차에서 다시 받음", car.cfg.v === 180 && link.cfg.v === 180, car.cfg.v);
+
+    $("btnGo").click(); await sleep(2600);
+    check("출발 신호 뒤 주행 중", car.state === 2 && running !== null, car.state);
+    markLap(); await sleep(300); markLap();
+    check("랩 표시 기록", running && running.laps.length === 2);
+    let waited = 0; while (!runs.length && waited < 40000) { await sleep(500); waited += 500; }
+    const r1 = runs[0];
+    check("멈추면 기록 자동 수신", !!r1, `${waited}ms`);
+    if (r1) {
+      check("기록 개수와 머리줄 일치", r1.samples.bits.length === link.log.length && r1.missing === 0, `${r1.samples.bits.length} / ${link.log.length}`);
+      const same = r1.samples.bits.every((b, i) => b === (link.log[i][0] & 0x7f)) && r1.samples.L.every((v, i) => v === link.log[i][1] * 2);
+      check("받은 값이 차 기록과 같음", same);
+      check("주행 요약(#E) 연결", r1.car && r1.car.runMs > 1000, r1.car && r1.car.runMs);
+      check("랩 표시가 기록에 저장", r1.laps.length === 2);
+      check("이번 주행 설정 저장", r1.settings.v === 180, r1.settings.v);
+      const a = analyze(r1);
+      check("분석 값 계산", a.runSecs > 1 && a.avgBase > 50 && Number.isFinite(a.wobble), `${a.runSecs.toFixed(1)}초 평균출력 ${Math.round(a.avgBase)}`);
+      const ex = exportObject(r1);
+      check("파일 형식", ex.format === "teammission3-run-v1" && ex.samples.bits.length === r1.samples.bits.length && ex.summary.runSecs > 0);
+      check("복사용 텍스트", compactText(r1).split("\n").length === r1.samples.bits.length + 2);
+      const cv = $("cvE").getContext("2d").getImageData(0, 0, $("cvE").width, $("cvE").height).data;
+      let dark = 0; for (let i = 0; i < cv.length; i += 4) if (cv[i + 3] > 0 && cv[i] < 80 && cv[i + 2] > 60) dark++;
+      check("그래프 그려짐", dark > 50, dark);
+    }
+    // 한 줄 빠뜨려도 다시 받아서 채우는지
+    link.dropChunk = 2;
+    $("btnGo").click();
+    waited = 0; while (runs.length < 2 && waited < 40000) { await sleep(500); waited += 500; }
+    const r2 = runs[0];
+    check("빠진 줄 다시 받아 채움", runs.length === 2 && r2.missing === 0 && r2.samples.bits.length === link.log.length, r2 && `빠짐 ${r2.missing}`);
+    check("브라우저에 기록 저장", JSON.parse(localStorage.getItem(RUNS_KEY) || "[]").length === 2);
+    $("btnRedump").click(); await sleep(3000);
+    check("다시 받기는 같은 주행을 바꿔 끼움", runs.length === 2, runs.length);
+    // 주행 중 정지
+    $("btnGo").click(); await sleep(3000); $("btnStop").click();
+    waited = 0; while (runs.length < 3 && waited < 10000) { await sleep(300); waited += 300; }
+    check("정지 버튼으로 멈추고 기록 받음", runs.length === 3 && runs[0].car.reason === 3, runs[0] && runs[0].car && runs[0].car.reason);
+
+    const pre = document.createElement("pre"); pre.id = "selftest"; pre.textContent = out.join("\n"); document.body.appendChild(pre);
+    localStorage.removeItem(RUNS_KEY);
+  })();
+}
+</script>
+</body>
+</html>
