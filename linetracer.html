@@ -290,6 +290,9 @@ class UsbLink {
 }
 
 // 차 없이 미리 보기: 펌웨어와 같은 줄을 주고받는 가짜 차 (타원 트랙, 센서 5개, 같은 PD 제어)
+// SIM_OPTS.junk: HM-10이 연결 직후 아두이노로 줄바꿈 없이 보내는 글자(예: OK+CONN) 흉내
+// SIM_OPTS.mute: 명령을 하나도 못 받는 차 흉내
+const SIM_OPTS = { junk:"", mute:false };
 class SimLink {
   constructor(onLine, onState) {
     this.onLine = onLine; this.onState = onState;
@@ -297,6 +300,7 @@ class SimLink {
     this.saved = { ...this.cfg };
     this.N = 5; this.state = 0; this.runId = 0; this.viewer = false; this.out = []; this.dropChunk = -1;
     this.log = []; this.logTotal = 0; this.lastStatus = 0; this.dump = null; this.saving = false; this.ignoreSave = false;
+    this.junk = SIM_OPTS.junk; this.mute = SIM_OPTS.mute; this.rxBuf = ""; this.busyUntil = 0;
   }
   async open() {
     this.onState("connecting");
@@ -304,7 +308,6 @@ class SimLink {
     this.t = 0;
     this.placeOnLine();
     this.say("TeamMission3 line tracer ready (시뮬레이션)");
-    this.send(this.cfgBody());
     this.onState("connected", "시뮬레이션");
   }
   async close() { clearInterval(this.timer); this.onState("off"); }
@@ -312,9 +315,13 @@ class SimLink {
   send(body) { this.out.push(packet(body)); }
   cfgBody() { const c = this.cfg; return `C,${Math.round(c.kp * 10)},${Math.round(c.kd * 10)},${c.v},${c.vmin},${c.slow},${c.acc},${c.rev},${c.spin},${c.delay},${c.log},${this.N}`; }
   write(text) {
-    for (const raw of text.split("\n")) {
+    if (this.mute) return Promise.resolve();
+    this.rxBuf += this.junk + text; this.junk = "";
+    const parts = this.rxBuf.split("\n"); this.rxBuf = parts.pop();
+    for (const raw of parts) {
       const line = raw.trim().toLowerCase();
-      if (line) setTimeout(() => this.command(line), 15);
+      // 실제 차(SoftwareSerial)는 보내는 동안 못 받는다: 긴 답을 보내는 중에 온 줄은 버린다
+      if (line) setTimeout(() => { if (performance.now() >= this.busyUntil) this.command(line); }, 15);
     }
     return Promise.resolve();
   }
@@ -341,6 +348,9 @@ class SimLink {
       else if (cmd === "acc") this.cfg.acc = Math.max(1, iv);
       else this.cfg[cmd] = iv;
       if (this.state === 2) this.say("ok"); else this.send(this.cfgBody());
+    } else if (this.state !== 2) {   // 모르는 명령: 예전 펌웨어처럼 긴 도움말 (보내는 약 0.1초 동안 못 받음)
+      this.say("명령: go(g) stop(x) ? s mt save load default dump | kp kd v vmin slow acc rev spin delay log <값>");
+      this.busyUntil = performance.now() + 110;
     }
   }
   // ---- 가짜 트랙과 차 ----
@@ -497,6 +507,7 @@ class SimLink {
 // 상태
 // ==================================================
 let link = null, linkKind = "", linkState = "off", deviceName = "";
+let cfgSeq = 0;          // 차에서 설정(#C)을 받은 횟수
 const car = { state:-1, bits:0, n:5, cfg:null, lastSeen:0, saving:false, savingSince:0 };
 let running = null;      // 주행 중: { id, startAt, laps:[] }
 let incoming = null;     // 기록 받는 중
@@ -534,6 +545,7 @@ function handleLine(line) {
   const n = (i) => Number(f[i]);
   switch (f[0]) {
     case "C":
+      cfgSeq++;
       car.cfg = { kp:n(1) / 10, kd:n(2) / 10, v:n(3), vmin:n(4), slow:n(5), acc:n(6), rev:n(7), spin:n(8), delay:n(9), log:n(10) };
       car.n = n(11) || 5;
       fillTune();
@@ -988,6 +1000,31 @@ function compactText(run) {
 // ==================================================
 // 연결 버튼
 // ==================================================
+// 연결 직후 인사. HM-10은 연결될 때 아두이노 쪽으로 "OK+CONN" 같은 글자를 줄바꿈 없이 보내기도 해서
+// 첫 명령 앞에 붙어 깨진다. 차가 그 깨진 줄에 긴 답을 보내는 동안(약 0.1초)은 블루투스로 못 받으므로
+// 빈 줄로 먼저 끊고, 잠깐 기다렸다가 v1을 보내고, 설정(#C)이 안 오면 다시 묻는다.
+async function hello(l) {
+  const start = cfgSeq;
+  for (let k = 0; k < 4; k++) {
+    await sleep(k ? 400 : 300);
+    if (link !== l) return;
+    await l.write("\n");
+    await sleep(250);
+    if (link !== l) return;
+    await l.write("v1\n");
+    for (let t = 0; t < 12 && link === l && cfgSeq === start; t++) await sleep(100);
+    if (link !== l) return;
+    if (cfgSeq !== start) break;
+    if (k === 0) log("차 대답이 없어 다시 묻는 중…");
+  }
+  if (cfgSeq === start) {
+    log("차가 명령에 대답하지 않아요. HM-10 TXD → D9, RXD ← D10 배선과 새 펌웨어가 올라갔는지 확인하세요");
+    return;
+  }
+  await sleep(200);
+  if (link === l) await l.write("dump\n");   // 마지막 주행도 받아 온다 (이미 있으면 바꿔 끼움)
+}
+
 function onState(state, name) {
   linkState = state;
   if (name) deviceName = name;
@@ -995,7 +1032,7 @@ function onState(state, name) {
   $("btnBle").hidden = $("btnUsb").hidden = $("btnSim").hidden = state !== "off";
   if (state === "connected") {
     log(`연결됨: ${deviceName}`);
-    setTimeout(() => { if (link) link.write("v1\ncfg\ndump\n"); }, 300);   // 마지막 주행도 받아 온다 (이미 있으면 바꿔 끼움)
+    hello(link);
   } else if (state === "off") {
     log("연결 끊김");
     car.state = -1;
@@ -1187,6 +1224,26 @@ if (location.hash === "#selftest") {
       check("긴 주행: 랩 표시가 출발 기준 위치에 그려짐", Math.abs(x - expX) < 0.01 && px[2] > 180 && px[0] < 160, `${(ms / 1000).toFixed(2)}초 rgb ${px[0]},${px[1]},${px[2]}`);
       check("긴 주행: 파일에 시작 시각", exportObject(r4).firstSampleMs === Math.round(tw.t0 * 1000) && compactText(r4).includes(`출발 뒤 ${tw.t0.toFixed(2)}초`));
     }
+
+    // HM-10이 연결 직후 'OK+CONN'을 줄바꿈 없이 보내는 경우 (11/11 실제 차에서 생긴 일)
+    await link.close(); link = null; await sleep(200);
+    SIM_OPTS.junk = "OK+CONN"; $("log").textContent = "";
+    let seq0 = cfgSeq;
+    await connect("sim"); await sleep(3000);
+    check("'OK+CONN'이 붙어 와도 설정 받음", cfgSeq > seq0 && $("t_kp").value !== "", `설정 ${cfgSeq - seq0}번`);
+    check("'OK+CONN'이 붙어 와도 상태 받아서 출발 가능", car.state === 0 && !$("btnGo").disabled, `상태 ${car.state}`);
+    check("깨진 첫 줄에 대한 차 답은 메시지로만", $("log").textContent.includes("명령: go(g)"));
+    $("btnGo").click(); waited = 0;
+    while (car.state !== 2 && waited < 5000) { await sleep(100); waited += 100; }
+    check("'OK+CONN' 뒤에도 [출발] 동작", car.state === 2, `상태 ${car.state}`);
+    $("btnStop").click(); await sleep(800);
+    SIM_OPTS.junk = "";
+    // 명령을 하나도 못 받는 차
+    await link.close(); link = null; await sleep(200);
+    SIM_OPTS.mute = true; $("log").textContent = ""; seq0 = cfgSeq;
+    await connect("sim"); await sleep(9000);
+    check("차가 대답 없으면 배선 확인 안내", cfgSeq === seq0 && $("log").textContent.includes("대답하지 않아요"));
+    SIM_OPTS.mute = false; await link.close(); link = null;
 
     const pre = document.createElement("pre"); pre.id = "selftest"; pre.textContent = out.join("\n"); document.body.appendChild(pre);
     localStorage.removeItem(RUNS_KEY);
