@@ -73,6 +73,8 @@
   th { font-size:12px; color:var(--sub); font-weight:600; }
   tr.sel td { background:#eaf2fb; }
   tbody tr { cursor:pointer; }
+  th.ck, td.ck { width:30px; padding-right:0; text-align:center; }
+  th.ck input, td.ck input { width:16px; height:16px; cursor:pointer; vertical-align:middle; }
   .log { font:12px/1.6 Menlo, monospace; color:var(--sub); max-height:150px; overflow:auto; margin:0; white-space:pre-wrap; }
   .empty { color:var(--faint); font-size:13px; padding:20px 0; text-align:center; }
   .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px; border-radius:10px; font-weight:600; z-index:20; }
@@ -166,7 +168,7 @@
         </div>
       </div>
       <table>
-        <thead><tr><th>#</th><th>받은 시각</th><th>주행</th><th>놓침</th><th>v / kp / kd</th><th>메모</th></tr></thead>
+        <thead><tr><th class="ck"><input type="checkbox" id="ckAll" title="전체 선택"></th><th>#</th><th>받은 시각</th><th>주행</th><th>놓침</th><th>v / kp / kd</th><th>메모</th></tr></thead>
         <tbody id="hist"></tbody>
       </table>
       <p class="empty" id="histEmpty">저장된 기록이 없습니다. 기록은 이 브라우저에 최근 40개까지 남습니다.</p>
@@ -515,6 +517,7 @@ let lastEnd = null;      // 마지막 #E
 let saveWait = null;     // [차에 저장] 뒤 #K 기다리는 중
 let runs = [];
 let selected = null;
+let checked = new Set();   // 지울 기록 (체크 상자)
 try { runs = JSON.parse(localStorage.getItem(RUNS_KEY) || "[]"); } catch (e) { runs = []; }
 function saveRuns() {
   try { localStorage.setItem(RUNS_KEY, JSON.stringify(runs.slice(0, MAX_RUNS))); }
@@ -806,10 +809,19 @@ function render() {
   $("btnDefault").disabled = !connected || car.state === 2;
 }
 
+function updateChecks() {
+  const n = checked.size;
+  $("btnDelete").textContent = n ? `체크한 기록 ${n}개 지우기` : "선택한 기록 지우기";
+  $("ckAll").checked = runs.length > 0 && n === runs.length;
+  $("ckAll").indeterminate = n > 0 && n < runs.length;
+}
+
 function renderHistory() {
   const tb = $("hist");
   tb.innerHTML = "";
   $("histEmpty").hidden = runs.length > 0;
+  const keys = new Set(runs.map((r) => r.key));
+  for (const k of [...checked]) if (!keys.has(k)) checked.delete(k);
   for (const r of runs) {
     const tr = document.createElement("tr");
     if (r.key === selected) tr.className = "sel";
@@ -817,11 +829,16 @@ function renderHistory() {
     const time = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
     const secs = r.car ? (r.car.runMs / 1000).toFixed(2) + "초" : "-";
     const memo = [r.notes.battery ? r.notes.battery + "V" : "", r.notes.memo].filter(Boolean).join(" · ");
-    tr.innerHTML = `<td>${r.id}</td><td>${time}</td><td>${secs}</td><td>${r.car ? r.car.lost : "-"}</td><td>${r.settings.v} / ${r.settings.kp} / ${r.settings.kd}</td><td></td>`;
+    tr.innerHTML = `<td class="ck"><input type="checkbox" title="지울 기록으로 체크"></td><td>${r.id}</td><td>${time}</td><td>${secs}</td><td>${r.car ? r.car.lost : "-"}</td><td>${r.settings.v} / ${r.settings.kp} / ${r.settings.kd}</td><td></td>`;
     tr.lastChild.textContent = memo;
+    const ck = tr.querySelector("input");
+    ck.checked = checked.has(r.key);
+    tr.firstChild.addEventListener("click", (e) => e.stopPropagation());   // 체크만 하고 기록은 안 바꿈
+    ck.addEventListener("change", () => { if (ck.checked) checked.add(r.key); else checked.delete(r.key); updateChecks(); });
     tr.addEventListener("click", () => { selected = r.key; renderHistory(); renderRun(); });
     tb.appendChild(tr);
   }
+  updateChecks();
 }
 
 function currentRun() { return runs.find((r) => r.key === selected) || null; }
@@ -1094,12 +1111,25 @@ $("btnCopy").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText(compactText(run)); toast("복사했습니다. 대화창에 붙여 넣으세요"); }
   catch (e) { toast("복사가 막혔습니다. [파일로 저장]을 쓰세요"); }
 });
+$("ckAll").addEventListener("change", (e) => {
+  checked = e.target.checked ? new Set(runs.map((r) => r.key)) : new Set();
+  renderHistory();
+});
 $("btnDelete").addEventListener("click", () => {
-  const run = currentRun(); if (!run) return;
-  if (!confirm(`주행 #${run.id} 기록을 이 브라우저에서 지울까요?`)) return;
-  runs = runs.filter((r) => r.key !== run.key); saveRuns();
-  selected = runs.length ? runs[0].key : null;
+  let gone;
+  if (checked.size) {
+    if (!confirm(`체크한 기록 ${checked.size}개를 이 브라우저에서 지울까요?`)) return;
+    gone = new Set(checked);
+  } else {
+    const run = currentRun(); if (!run) { toast("지울 기록을 체크하거나 하나를 고르세요"); return; }
+    if (!confirm(`주행 #${run.id} 기록을 이 브라우저에서 지울까요?`)) return;
+    gone = new Set([run.key]);
+  }
+  runs = runs.filter((r) => !gone.has(r.key)); saveRuns();
+  checked.clear();
+  if (gone.has(selected)) selected = runs.length ? runs[0].key : null;
   renderHistory(); renderRun();
+  toast(`기록 ${gone.size}개를 지웠습니다`);
 });
 for (const id of ["noteBat", "noteMemo"]) {
   $(id).addEventListener("change", () => {
@@ -1244,6 +1274,31 @@ if (location.hash === "#selftest") {
     await connect("sim"); await sleep(9000);
     check("차가 대답 없으면 배선 확인 안내", cfgSeq === seq0 && $("log").textContent.includes("대답하지 않아요"));
     SIM_OPTS.mute = false; await link.close(); link = null;
+
+    // 기록 여러 개 체크해서 한꺼번에 지우기
+    {
+      const conf = window.confirm; window.confirm = () => true;
+      const before = runs.length, rows = () => [...$("hist").querySelectorAll("tr")];
+      const keep = runs[0].key; selected = keep; renderHistory(); renderRun();
+      const boxes = () => rows().map((tr) => tr.querySelector("input"));
+      const b = boxes(); b[1].click(); b[2].click();
+      const gone = [runs[1].key, runs[2].key];
+      check("체크하면 지우기 버튼에 개수 표시", $("btnDelete").textContent.includes("2개") && $("ckAll").indeterminate, $("btnDelete").textContent);
+      check("체크 상자를 눌러도 보던 기록은 그대로", selected === keep);
+      $("btnDelete").click();
+      check("체크한 기록만 한꺼번에 지움", runs.length === before - 2 && !runs.some((r) => gone.includes(r.key)) && runs.some((r) => r.key === keep), `${before} → ${runs.length}`);
+      check("지운 뒤 브라우저 저장도 같음", JSON.parse(localStorage.getItem(RUNS_KEY) || "[]").length === runs.length);
+      check("지운 뒤 체크 비움", checked.size === 0 && $("btnDelete").textContent === "선택한 기록 지우기");
+      $("ckAll").click();
+      check("전체 선택", checked.size === runs.length && boxes().every((x) => x.checked));
+      $("ckAll").click();
+      check("전체 선택 해제", checked.size === 0 && boxes().every((x) => !x.checked));
+      window.confirm = () => false; boxes()[0].click(); $("btnDelete").click();
+      check("확인 창에서 취소하면 안 지움", runs.length === before - 2);
+      window.confirm = () => true; $("ckAll").click(); $("btnDelete").click();
+      check("전체 선택 후 지우면 다 지워짐", runs.length === 0 && selected === null && !$("histEmpty").hidden);
+      window.confirm = conf;
+    }
 
     const pre = document.createElement("pre"); pre.id = "selftest"; pre.textContent = out.join("\n"); document.body.appendChild(pre);
     localStorage.removeItem(RUNS_KEY);
